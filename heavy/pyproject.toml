@@ -1,0 +1,13 @@
+[project]
+name = "mic-hifi-heavy"
+version = "0.1.0"
+description = "mic-hifi ağır işçi: PipeWire-JACK istemcisi içinde blok-blok model çalıştırır (taşıyıcı). Sürümler == ile sabit; kurulum yalnız uv.lock'tan."
+requires-python = "==3.13.*"
+dependencies = [
+    "JACK-Client==0.5.7",
+    "cffi==2.0.0",
+    "numpy==2.3.3",
+]
+
+[tool.uv]
+package = false

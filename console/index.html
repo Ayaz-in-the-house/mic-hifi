@@ -1,0 +1,630 @@
+<!doctype html>
+<html lang="tr" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>Mikrofon Konsolu</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2316181d'/%3E%3Crect x='12' y='6' width='8' height='14' rx='4' fill='%2355c8c0'/%3E%3Cpath d='M8 16a8 8 0 0 0 16 0M16 24v3' fill='none' stroke='%2355c8c0' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+/* Görsel dil kardeş projeden (bt-audio-hifi konsolu): OKLCH katmanları, tek vurgu, 4 px boşluk, tek radius ölçeği.
+   Bu modülün vurgusu turkuaz. Kalıcı animasyon yok; yalnız veri geldiğinde çizilir. */
+:root {
+  --bg: oklch(0.975 0.003 255); --s1: oklch(1 0 0); --s2: oklch(0.965 0.004 255); --s3: oklch(0.93 0.006 255);
+  --line: oklch(0.86 0.008 255); --text: oklch(0.22 0.01 255); --text-2: oklch(0.42 0.012 255); --text-3: oklch(0.52 0.012 255);
+  --acc: oklch(0.5 0.09 195); --acc-ink: oklch(0.99 0.01 195); --acc-soft: oklch(0.5 0.09 195 / 0.12);
+  --ok: oklch(0.56 0.14 150); --warn: oklch(0.5 0.12 65); --bad: oklch(0.5 0.19 27); --zone: oklch(0.5 0.09 195 / 0.16);
+  --shadow: 0 1px 2px oklch(0.3 0.02 255 / 0.08), 0 4px 12px oklch(0.3 0.02 255 / 0.06);
+  --r-c: 6px; --r-p: 10px; --ease: cubic-bezier(0.16, 1, 0.3, 1); color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: oklch(0.16 0.008 255); --s1: oklch(0.2 0.009 255); --s2: oklch(0.24 0.01 255); --s3: oklch(0.285 0.012 255);
+  --line: oklch(0.33 0.012 255); --text: oklch(0.93 0.005 255); --text-2: oklch(0.76 0.01 255); --text-3: oklch(0.66 0.012 255);
+  --acc: oklch(0.78 0.1 195); --acc-ink: oklch(0.2 0.03 195); --acc-soft: oklch(0.78 0.1 195 / 0.14);
+  --ok: oklch(0.74 0.15 150); --warn: oklch(0.8 0.14 80); --bad: oklch(0.68 0.19 27); --zone: oklch(0.78 0.1 195 / 0.16);
+  --shadow: none; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: oklch(0.16 0.008 255); --s1: oklch(0.2 0.009 255); --s2: oklch(0.24 0.01 255); --s3: oklch(0.285 0.012 255);
+  --line: oklch(0.33 0.012 255); --text: oklch(0.93 0.005 255); --text-2: oklch(0.76 0.01 255); --text-3: oklch(0.66 0.012 255);
+  --acc: oklch(0.78 0.1 195); --acc-ink: oklch(0.2 0.03 195); --acc-soft: oklch(0.78 0.1 195 / 0.14);
+  --ok: oklch(0.74 0.15 150); --warn: oklch(0.8 0.14 80); --bad: oklch(0.68 0.19 27); --zone: oklch(0.78 0.1 195 / 0.16);
+  --shadow: none; color-scheme: dark; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; background: var(--bg); color: var(--text); }
+body { font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif; -webkit-font-smoothing: antialiased; }
+.num { font-variant-numeric: tabular-nums; }
+:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+main { max-width: 860px; margin: 0 auto; padding: 16px 16px 48px; display: grid; gap: 16px; }
+header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+h1 { font-size: 18px; font-weight: 650; margin: 0; letter-spacing: -0.01em; }
+h2 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); margin: 0 0 8px; }
+.grow { flex: 1; }
+.chip { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 12px; background: var(--s2); color: var(--text-2); font-size: 12px; white-space: nowrap; }
+.diag { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
+.diag li { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; }
+.diag li b { font-size: 14px; } .diag li p { margin: 0; grid-column: 1; font-size: 13px; color: var(--text-2); }
+.diag li .st { grid-column: 1 / -1; font-size: 12.5px; color: var(--text-3); } .diag li .st.warn { color: var(--warn); } .diag li .st.ok { color: var(--ok); }
+.diag li button { grid-row: 1 / span 2; grid-column: 2; }
+.guide { margin-top: 10px; padding: 16px; border: 2px solid var(--line); border-radius: 12px; display: grid; gap: 6px; text-align: center; }
+.guide.rec { border-color: var(--warn); } .guide b { font-size: 18px; } .guide p { margin: 0; font-size: 20px; line-height: 1.35; } .guide span { font-size: 28px; font-variant-numeric: tabular-nums; }
+.chip i { width: 8px; height: 8px; border-radius: 50%; background: var(--text-3); }
+.chip.ok i { background: var(--ok); } .chip.bad i { background: var(--bad); } .chip.warn i { background: var(--warn); }
+details.adv { margin-top: 4px; } details.adv summary { cursor: pointer; color: var(--text-3); font-size: 12.5px; width: max-content; padding: 4px 0; }
+details.adv[open] summary { margin-bottom: 8px; } details.adv .sl + .sl { margin-top: 8px; }
+.steps { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.steps span { padding: 4px 10px; border-radius: 12px; background: var(--s2); color: var(--text-3); font-size: 12.5px; }
+.steps span.now { background: var(--acc); color: var(--acc-ink); font-weight: 600; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; padding: 0 12px; border-radius: var(--r-c);
+  border: 1px solid var(--line); background: var(--s1); transition: background-color 120ms var(--ease), border-color 120ms var(--ease); touch-action: manipulation; }
+.btn:hover { background: var(--s3); } .btn:disabled { opacity: 0.5; cursor: default; }
+.panel { background: var(--s1); border: 1px solid var(--line); border-radius: var(--r-p); padding: 16px; box-shadow: var(--shadow); }
+.note { color: var(--text-3); font-size: 12.5px; margin: 8px 0 0; }
+.msg { border-radius: var(--r-c); padding: 8px 12px; background: var(--s2); border-left: 3px solid var(--warn); }
+
+/* ── bölmeli seçici (mod, dinleme) ── */
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; background: var(--s2); border-radius: var(--r-p); }
+.seg button { min-height: 44px; border: 0; border-radius: var(--r-c); background: transparent; color: var(--text-2); padding: 4px 8px; display: grid; gap: 0; line-height: 1.25; }
+.seg button small { font-size: 11.5px; color: var(--text-3); }
+.seg button:hover { background: var(--s3); }
+.seg button[aria-pressed="true"] { background: var(--acc); color: var(--acc-ink); font-weight: 600; }
+.seg button[aria-pressed="true"] small { color: var(--acc-ink); opacity: 0.85; }
+.seg.chars { grid-auto-flow: row; grid-template-columns: repeat(4, 1fr); margin-bottom: 12px; }
+.row.head { margin-top: 0; } .row.head h2 { margin: 0; } p.hint { color: var(--text-3); font-size: 12.5px; margin: 6px 0 12px; }
+.amtrow { margin: 0 0 12px; } .amtrow .lbl { font-size: 13px; color: var(--text-2); min-width: 76px; } .amtrow .seg { flex: 1; } .amtrow .seg button { min-height: 34px; }
+.delivery { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 12px; }
+.dv { background: var(--s2); border-radius: var(--r-c); padding: 8px 10px; display: grid; gap: 1px; border-left: 3px solid var(--line); }
+.dv b { font-size: 16px; font-variant-numeric: tabular-nums; } .dv span { font-size: 12.5px; color: var(--text-2); } .dv small { font-size: 11.5px; color: var(--text-3); }
+.dv.ok { border-left-color: var(--ok, #2e9e6b); } .dv.warn { border-left-color: var(--warn, #c98a1a); }
+.livebar { margin: 0 0 12px; } .livebar .hint, .row > span.hint { margin: 0; font-size: 12.5px; color: var(--text-3); } #livebtn[aria-pressed="true"] { background: var(--acc); color: var(--acc-ink); border-color: var(--acc); font-weight: 600; }
+h3.sublabel { font-size: 13px; font-weight: 600; margin: 14px 0 0; color: var(--text-2); }
+.seg button:disabled { opacity: 0.45; cursor: default; } .seg button[aria-pressed="true"]:disabled { opacity: 1; } .seg button:disabled:hover { background: transparent; }
+#audplay { grid-auto-flow: row; grid-template-columns: repeat(5, 1fr); margin-top: 12px; }
+#charpanel .body { display: grid; gap: 8px; } .sub { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 12px; } .sub h3 { margin: 0; font-size: 14.5px; font-weight: 600; }
+.sub.off .body { opacity: 0.45; } .sub p.hint { margin: 2px 0 8px; max-width: 62ch; } #charpanel.off .seg, #charpanel.off .body { opacity: 0.45; }
+.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.row select, .row input[type=text] { height: 32px; border-radius: var(--r-c); border: 1px solid var(--line); background: var(--s1); padding: 0 8px; min-width: 0; }
+
+/* ── seviye göstergesi ── */
+.meter { display: grid; grid-template-columns: 64px 1fr 76px; align-items: center; gap: 12px; margin-top: 8px; }
+.meter .lbl { color: var(--text-2); }
+.bar { position: relative; height: 14px; border-radius: 7px; background: var(--s3); overflow: hidden; }
+.bar .zone { position: absolute; top: 0; bottom: 0; background: var(--zone); }
+.bar .fill { position: absolute; inset: 0; background: var(--acc); transform-origin: left; transform: scaleX(0); }
+.bar .fill.hot { background: var(--bad); }
+.bar .pk { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--text); left: 0; }
+.meter .val { text-align: right; color: var(--text-2); }
+.scale { display: grid; grid-template-columns: 64px 1fr 76px; gap: 12px; margin-top: 4px; }
+.scale div { grid-column: 2; display: flex; justify-content: space-between; color: var(--text-3); font-size: 11px; }
+.clip { color: var(--bad); font-weight: 600; }
+
+/* ── sinyal yolu kartları ── */
+.stage { display: grid; grid-template-columns: 28px 1fr auto; gap: 4px 12px; align-items: start; padding: 12px 0; border-top: 1px solid var(--line); }
+.stage:first-of-type { border-top: 0; padding-top: 0; }
+.stage .n { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--s2); color: var(--text-3); font-size: 12px; font-weight: 600; }
+.stage.on .n { background: var(--acc-soft); color: var(--acc); }
+.stage h3 { margin: 2px 0 0; font-size: 14.5px; font-weight: 600; }
+.stage p { margin: 2px 0 0; color: var(--text-3); font-size: 12.5px; max-width: 62ch; }
+.stage .body { grid-column: 2 / -1; display: grid; gap: 8px; margin-top: 8px; }
+.stage.off .body { opacity: 0.45; }
+.sw { position: relative; width: 44px; height: 26px; border-radius: 13px; border: 1px solid var(--line); background: var(--s3); padding: 0; flex: none; transition: background-color 120ms var(--ease); }
+.sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: var(--s1); border: 1px solid var(--line); transition: transform 120ms var(--ease); }
+.sw[aria-checked="true"] { background: var(--acc); border-color: var(--acc); }
+.sw[aria-checked="true"]::after { transform: translateX(18px); border-color: transparent; }
+.fixed { color: var(--text-3); font-size: 12px; padding-top: 4px; }
+.sl { display: grid; grid-template-columns: minmax(96px, 150px) 1fr 68px; gap: 12px; align-items: center; }
+.sl label { color: var(--text-2); }
+.sl output { text-align: right; color: var(--text); }
+input[type=range] { width: 100%; height: 28px; accent-color: var(--acc); margin: 0; }
+@media (max-width: 560px) {
+  .seg.modes, .seg.chars, #audplay, .delivery { grid-auto-flow: row; grid-template-columns: 1fr 1fr; }
+  .sl { grid-template-columns: 1fr 60px; } .sl input { grid-column: 1 / -1; grid-row: 2; }
+  .meter, .scale { grid-template-columns: 48px 1fr 64px; gap: 8px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Mikrofon Konsolu</h1>
+    <span class="chip" id="svc"><i></i><span>bağlanıyor…</span></span>
+    <span class="chip" id="micchip" hidden><i></i><span></span></span>
+    <span class="chip" id="dropchip" hidden><i></i><span></span></span>
+    <span class="chip bad" id="mutechip" hidden title="Mikrofondan tam sessizlik geliyor. Cihazın üstündeki sessize alma tuşuna dokun."><i></i><span>mikrofon cihazdan sessizde</span></span>
+    <span class="chip" id="qchip" hidden><i></i><span></span></span>
+    <span class="grow"></span>
+    <button class="btn" id="theme" type="button" aria-label="Temayı değiştir">Tema</button>
+  </header>
+
+  <div class="msg" id="msg" role="status" hidden></div>
+
+  <section class="panel" aria-labelledby="h-mode">
+    <h2 id="h-mode">Mod</h2>
+    <div class="seg modes" id="modes" role="group" aria-label="Konuşma modu">
+      <button type="button" data-mode="normal">Normal<small>gündüz, normal ses</small></button>
+      <button type="button" data-mode="fisilti">Fısıltı<small>sessiz konuşma</small></button>
+      <button type="button" data-mode="gece">Gece<small>çok sessiz fısıltı</small></button>
+      <button type="button" data-mode="ham">Ham<small>işlemsiz, dikte için</small></button>
+    </div>
+    <div class="row">
+      <span class="chip" id="modechip"><span>—</span></span>
+      <span class="grow"></span>
+      <select id="profsel" aria-label="Kayıtlı profillerim"><option value="">Profillerim…</option></select>
+      <input type="text" id="profname" placeholder="profil-adi" aria-label="Yeni profil adı" maxlength="40" size="14">
+      <button class="btn" id="profsave" type="button">Kaydet</button>
+      <button class="btn" id="profdel" type="button" hidden>Sil</button>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-char" data-sw="tone_on" id="charpanel">
+    <div class="row head"><h2 id="h-char">Ses karakteri</h2><span class="chip" id="charchip"><span>—</span></span><span class="grow"></span>
+      <button class="sw" type="button" role="switch" data-key="tone_on" aria-label="Ses karakteri"></button></div>
+    <p class="hint">Sesinin tonunu değiştirir; mod ne olursa olsun korunur. Ses yolunda sessizlik kapısından sonra, tavan korumasından önce uygulanır.</p>
+    <div class="row livebar"><button class="btn" id="livebtn" type="button" aria-pressed="false">Canlı dinle</button>
+      <span class="hint" id="livehint">Aç, konuş ve karakter değiştir: sesini kulaklıktan anında duyarsın.</span></div>
+    <div class="seg chars" id="chars" role="group" aria-label="Ses karakteri">
+      <button type="button" data-char="notr">Nötr<small>dokunulmamış ton</small></button>
+      <button type="button" data-char="sicak">Sıcak<small>dolgun, yumuşak</small></button>
+      <button type="button" data-char="parlak">Parlak<small>net, havadar</small></button>
+      <button type="button" data-char="radyo">Radyo<small>dolgun ve net</small></button>
+      <button type="button" data-char="derin">Derin<small>kalın, koyu</small></button>
+      <button type="button" data-char="yakin">Yakın<small>kulağa yakın, havalı</small></button>
+      <button type="button" data-char="kalin">Kalın<small>aynı sen, daha kalın perde</small></button>
+      <button type="button" data-char="iri">İri<small>daha iri biri gibi</small></button>
+      <button type="button" data-char="telefon">Telefon<small>dar bant</small></button>
+      <button type="button" data-char="megafon">Megafon<small>dar ve sert</small></button>
+    </div>
+    <p class="hint" id="pitchnote">Kalın ve İri sesin perdesini değiştirir: seçince ya da çıkınca mikrofon iki üç saniyeliğine yeniden başlar ve sese yaklaşık 60 ms gecikme eklenir. Fısıltı, Gece ve Ham modlarında yalnız ton kısmı duyulur.</p>
+    <div class="row amtrow"><span class="lbl" id="amtlabel">Ne kadar?</span>
+      <div class="seg" id="amts" role="group" aria-labelledby="amtlabel">
+        <button type="button" data-amt="hafif">Hafif</button><button type="button" data-amt="orta">Orta</button>
+        <button type="button" data-amt="guclu">Güçlü</button><button type="button" data-amt="cok">En güçlü</button>
+      </div></div>
+    <div class="row" id="charsave" hidden>
+      <span class="hint" style="margin:0">Elle ayarladın. Bu tonu adıyla sakla:</span><span class="grow"></span>
+      <input type="text" id="charname" placeholder="benim-sesim" aria-label="Yeni karakter adı" maxlength="40" size="14">
+      <button class="btn" id="charsavebtn" type="button">Karakter olarak kaydet</button>
+    </div>
+    <div class="row" id="chardel" hidden><span class="hint" style="margin:0">Kendi karakterin seçili.</span><span class="grow"></span><button class="btn" id="chardelbtn" type="button">Bu karakteri sil</button></div>
+    <div class="body">
+      <div class="sl"><label for="tone_low_db">Gövde</label><input type="range" id="tone_low_db"><output class="num" for="tone_low_db"></output></div>
+      <div class="sl"><label for="tone_pres_db">Netlik</label><input type="range" id="tone_pres_db"><output class="num" for="tone_pres_db"></output></div>
+      <div class="sl"><label for="tone_air_db">Hava</label><input type="range" id="tone_air_db"><output class="num" for="tone_air_db"></output></div>
+      <details class="adv"><summary>İleri</summary>
+        <div class="sl"><label for="tone_mud_db">Bulanıklık (250 Hz)</label><input type="range" id="tone_mud_db"><output class="num" for="tone_mud_db"></output></div>
+        <div class="sl"><label for="tone_box_db">Kutu sesi (500 Hz)</label><input type="range" id="tone_box_db"><output class="num" for="tone_box_db"></output></div>
+        <div class="sl"><label for="tone_nasal_db">Geniz (1,4 kHz)</label><input type="range" id="tone_nasal_db"><output class="num" for="tone_nasal_db"></output></div>
+        <div class="sl"><label for="tone_hp_hz">Alt kesim</label><input type="range" id="tone_hp_hz"><output class="num" for="tone_hp_hz"></output></div>
+        <div class="sl"><label for="tone_lp_hz">Üst kesim</label><input type="range" id="tone_lp_hz"><output class="num" for="tone_lp_hz"></output></div></details>
+    </div>
+    <div class="sub" data-sw="pitch_on">
+      <div class="row head"><h3>Perde</h3><span class="grow"></span><button class="sw" type="button" role="switch" data-key="pitch_on" aria-label="Perde"></button></div>
+      <p class="hint">Sesini kalınlaştırır ya da inceltir. Açıp kapatınca mikrofon birkaç saniyeliğine yeniden başlar; açıkken sese yaklaşık 60 ms gecikme eklenir. Fısıltıda işe yaramaz: Fısıltı, Gece ve Ham modlarında kendiliğinden devre dışı kalır.</p>
+      <div class="body"><div class="sl"><label for="pitch_st">Kaydırma (yarım ton)</label><input type="range" id="pitch_st"><output class="num" for="pitch_st"></output></div>
+        <div class="row"><span class="lbl">Ses yolunu koru</span><span class="grow"></span><button class="sw" type="button" role="switch" data-key="pitch_formant" aria-label="Ses yolunu koru"></button></div>
+        <p class="hint">Açık: aynı kişi, yalnız daha kalın ya da ince. Kapalı: gövde de değişir; aşağı kaydırınca daha iri, yukarı kaydırınca daha ufak biri gibi.</p></div>
+    </div>
+    <div class="sub" data-sw="sat_on">
+      <div class="row head"><h3>Doygunluk</h3><span class="grow"></span><button class="sw" type="button" role="switch" data-key="sat_on" aria-label="Doygunluk"></button></div>
+      <p class="hint">Sese sertlik ve cızırtı katar (megafon, telsiz).</p>
+      <div class="body"><div class="sl"><label for="sat_db">Sertlik</label><input type="range" id="sat_db"><output class="num" for="sat_db"></output></div></div>
+    </div>
+    <div class="sub" data-sw="deess_on">
+      <div class="row head"><h3>Islık kısma</h3><span class="grow"></span><button class="sw" type="button" role="switch" data-key="deess_on" aria-label="Islık kısma"></button></div>
+      <p class="hint">Keskin “s” ve “ş” seslerini yumuşatır; yalnız tiz bandı kısar, sesin gövdesine dokunmaz. Fısıltıyı da biraz kısar; Fısıltı, Gece ve Ham modlarına geçince kendiliğinden kapanır.</p>
+      <div class="body"><div class="sl"><label for="deess_thresh_db">Başlama seviyesi</label><input type="range" id="deess_thresh_db"><output class="num" for="deess_thresh_db"></output></div></div>
+    </div>
+    <div class="sub" data-sw="dyn_body_on">
+      <div class="row head"><h3>Dolgunluk</h3><span class="grow"></span><button class="sw" type="button" role="switch" data-key="dyn_body_on" aria-label="Dolgunluk"></button></div>
+      <p class="hint">Sesin altını daha sürekli ve tok yapar: zayıf hecelerde kaybolan gövdeyi yerinde tutar, güçlü hecelerde şişirmez. Derin ya da Sıcak karakterle birlikte dene. Fısıltıda alt bant boş olduğu için yalnız uğultuyu yükseltir; Fısıltı, Gece ve Ham modlarına geçince kendiliğinden kapanır.</p>
+      <div class="body"><div class="sl"><label for="dyn_body_db">Ne kadar</label><input type="range" id="dyn_body_db"><output class="num" for="dyn_body_db"></output></div></div>
+    </div>
+    <div class="sub" data-sw="dyn_mud_on">
+      <div class="row head"><h3>Şişme kontrolü</h3><span class="grow"></span><button class="sw" type="button" role="switch" data-key="dyn_mud_on" aria-label="Şişme kontrolü"></button></div>
+      <p class="hint">Mikrofona yaklaşınca ya da dolu hecelerde sesin altı şişip bulanıyorsa aç. Yalnız şişen anlarda alt-orta bandı kısar; sakin konuşmada tona dokunmaz.</p>
+      <div class="body"><div class="sl"><label for="dyn_mud_db">Başlama seviyesi</label><input type="range" id="dyn_mud_db"><output class="num" for="dyn_mud_db"></output></div></div>
+    </div>
+    <div class="sub" data-sw="dyn_harsh_on">
+      <div class="row head"><h3>Sertlik yumuşatma</h3><span class="grow"></span><button class="sw" type="button" role="switch" data-key="dyn_harsh_on" aria-label="Sertlik yumuşatma"></button></div>
+      <p class="hint">Yüksek sesli hecelerde ses kulağı tırmalıyorsa aç. Yalnız o anlarda orta-tiz bandı kısar. Fısıltıyı da kısar; Fısıltı, Gece ve Ham modlarına geçince kendiliğinden kapanır.</p>
+      <div class="body"><div class="sl"><label for="dyn_harsh_db">Başlama seviyesi</label><input type="range" id="dyn_harsh_db"><output class="num" for="dyn_harsh_db"></output></div></div>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-aud" id="audpanel">
+    <div class="row head"><h2 id="h-aud">Kulakla karşılaştır</h2><span class="chip" id="audchip"><span>kayıt yok</span></span></div>
+    <p class="hint">Canlı dinlemede kendi sesin ve Bluetooth gecikmesi araya girer. Burada bir kez konuşursun, aynı konuşmanı her karakterle arka arkaya dinlersin. Dinlemek ayarını değiştirmez.</p>
+    <div class="row" style="margin-top:0"><button class="btn" id="audrec" type="button">8 saniye kaydet</button><button class="btn" id="audstop" type="button" hidden>Durdur</button></div>
+    <h3 class="sublabel" id="audlabel">Kaydı dinle — bir karaktere bas:</h3>
+    <div class="seg" id="audplay" role="group" aria-labelledby="audlabel">
+      <button type="button" data-id="off">▶ Tonsuz<small>karakter kapalı</small></button>
+      <button type="button" data-id="current">▶ Şu anki ayarım<small>sürgülerdeki hâl</small></button>
+      <button type="button" data-id="notr">▶ Nötr</button><button type="button" data-id="sicak">▶ Sıcak</button>
+      <button type="button" data-id="parlak">▶ Parlak</button><button type="button" data-id="radyo">▶ Radyo</button>
+      <button type="button" data-id="derin">▶ Derin</button><button type="button" data-id="yakin">▶ Yakın</button>
+      <button type="button" data-id="kalin">▶ Kalın</button><button type="button" data-id="iri">▶ İri</button>
+      <button type="button" data-id="telefon">▶ Telefon</button><button type="button" data-id="megafon">▶ Megafon</button>
+    </div>
+    <div class="row"><button class="btn" id="audmeasure" type="button" disabled>Kaydı ölç (şu anki ayarımla)</button>
+      <span class="hint">Sesin yayın ölçüleriyle nerede durduğunu gösterir.</span></div>
+    <div class="delivery" id="delivery" hidden>
+      <div class="dv" data-k="integrated"><b>—</b><span>Ses yüksekliği</span><small id="dvloud">hedef −23 … −16 LUFS</small></div>
+      <div class="dv" data-k="true_peak"><b>—</b><span>Gerçek tepe</span><small>hedef ≤ −1 dBTP</small></div>
+      <div class="dv" data-k="floor"><b>—</b><span>Taban gürültüsü</span><small>hedef ≤ −52 dBFS</small></div>
+      <div class="dv" data-k="clicks_per_min"><b>—</b><span>Tık adayı (deneysel)</span><small>söz aralarında, dakikada; önce <i id="clkin">—</i>. Klavye de sayılır; henüz kalibre edilmedi</small></div>
+      <div class="dv" data-k="lra"><b>—</b><span>Yükseklik aralığı</span><small>konuşmada ≤ 10 LU</small></div>
+    </div>
+    <p class="note">Kayıt yalnız bu bilgisayarın geçici belleğinde durur; yeni kayıtta, 15 dakika kullanılmayınca ve panel kapanınca silinir. Kayıt sırasında karakter birkaç saniyeliğine kapatılır.</p>
+  </section>
+
+  <section class="panel" aria-labelledby="h-meter">
+    <h2 id="h-meter">Seviye</h2>
+    <div class="meter"><span class="lbl">Mikrofon</span>
+      <div class="bar" id="bar-in"><div class="fill"></div><div class="pk"></div></div>
+      <span class="val num" id="val-in">—</span></div>
+    <div class="meter"><span class="lbl">Çıkış</span>
+      <div class="bar" id="bar-out"><div class="zone" id="zone"></div><div class="fill"></div><div class="pk"></div></div>
+      <span class="val num" id="val-out">—</span></div>
+    <div class="scale"><div class="num"><span>−60</span><span>−48</span><span>−36</span><span>−24</span><span>−12</span><span>0 dB</span></div></div>
+    <p class="note" id="chaingain" hidden></p>
+    <p class="note">Konuşurken <b>Çıkış</b> çubuğu açık renkli bölgede kalmalı. Mikrofon çubuğu kırmızıya dönüyorsa mikrofonun üstündeki halkayı biraz kıs: o noktada ses mikrofonda bozulur, yazılım düzeltemez. <span class="clip" id="clip" hidden>Mikrofon kırpıldı.</span></p>
+  </section>
+
+  <section class="panel" aria-labelledby="h-path">
+    <h2 id="h-path">Ses yolu</h2>
+
+    <div class="stage on"><span class="n">1</span>
+      <div><h3>Uğultu filtresi</h3><p>Şebeke uğultusunu ve masa titreşimini keser (<span id="hpf" class="num">95</span> Hz altı). Mikrofonun gürültüsünün çoğu burada gider.</p></div>
+      <span class="fixed">her zaman açık</span></div>
+
+    <div class="stage" data-stage="auto" data-sw="auto_on"><span class="n">2</span>
+      <div><h3>Seviyeleyici</h3><p>Sesini kendiliğinden hedef yüksekliğe getirir: fısıltıyı kaldırır, yüksek sesi indirir. Sen susunca kazancı dondurur, böylece arka plan gürültüsü yükselmez.</p></div>
+      <button class="sw" type="button" role="switch" data-key="auto_on" aria-label="Seviyeleyici"></button>
+      <div class="body">
+        <div class="sl"><label for="auto_max_db">En çok yükseltme</label><input type="range" id="auto_max_db"><output class="num" for="auto_max_db"></output></div>
+        <details class="adv"><summary>İleri</summary>
+          <div class="sl"><label for="auto_target">Hedef yükseklik</label><input type="range" id="auto_target"><output class="num" for="auto_target"></output></div>
+          <div class="sl"><label for="auto_silence">Sessizlik eşiği</label><input type="range" id="auto_silence"><output class="num" for="auto_silence"></output></div>
+          <div class="sl"><label for="boost_db">Elle ek yükseltme</label><input type="range" id="boost_db"><output class="num" for="boost_db"></output></div>
+          <p class="hint" style="margin:4px 0 0">Fısıltın yükselmiyorsa sessizlik eşiğini düşür; susunca gürültü yükseliyorsa yükselt.</p></details></div></div>
+
+    <div class="stage" data-stage="level" data-sw="level_on"><span class="n">3</span>
+      <div><h3>Kompresör</h3><p>Ani yüksek heceleri yumuşatır. Hafif tutulur (3 : 1); sesler arasındaki büyük farkı seviyeleyici kapatır.</p></div>
+      <button class="sw" type="button" role="switch" data-key="level_on" aria-label="Kompresör"></button>
+      <div class="body">
+        <div class="sl"><label for="level_ratio">Oran</label><input type="range" id="level_ratio"><output class="num" for="level_ratio"></output></div>
+        <details class="adv"><summary>İleri</summary>
+          <div class="sl"><label for="level_thresh_db">Başlama seviyesi</label><input type="range" id="level_thresh_db"><output class="num" for="level_thresh_db"></output></div></details></div></div>
+
+    <div class="stage" data-stage="denoise" data-sw="denoise_on"><span class="n">4</span>
+      <div><h3>Gürültü bastırma</h3><p>Hışırtıyı ve sabit ortam sesini bastırır (yapay zekâ modeli). Fısıltıyı kesmez. Açıkken işlemciyi en çok bu kullanır.</p></div>
+      <button class="sw" type="button" role="switch" data-key="denoise_on" aria-label="Gürültü bastırma"></button>
+      <div class="body"><div class="sl"><label for="denoise_db">Güç</label><input type="range" id="denoise_db"><output class="num" for="denoise_db"></output></div></div></div>
+
+    <div class="stage" data-stage="gate" data-sw="gate_on"><span class="n">5</span>
+      <div><h3>Sessizlik kapısı</h3><p>Sen susunca kalan sesi kısar: söz aralarındaki nefes, klavye, tıkırtı. Konuşurken üstüne binen sesi kesemez. Çok sessiz fısıltının sonunu yutuyorsa seviyeyi düşür.</p></div>
+      <button class="sw" type="button" role="switch" data-key="gate_on" aria-label="Sessizlik kapısı"></button>
+      <div class="body">
+        <div class="sl"><label for="gate_depth_db">Kısma miktarı</label><input type="range" id="gate_depth_db"><output class="num" for="gate_depth_db"></output></div>
+        <details class="adv"><summary>İleri</summary>
+          <div class="sl"><label for="gate_thresh_db">Açılma seviyesi</label><input type="range" id="gate_thresh_db"><output class="num" for="gate_thresh_db"></output></div></details></div></div>
+
+    <div class="stage" data-stage="limit" data-sw="limit_on"><span class="n">6</span>
+      <div><h3>Tavan koruması</h3><p>Ani yüksek seste çıkışın bozulmasını önler. Kapatmak için bir neden yok.</p></div>
+      <button class="sw" type="button" role="switch" data-key="limit_on" aria-label="Tavan koruması"></button></div>
+
+    <div class="stage on" data-stage="out"><span class="n">7</span>
+      <div><h3>Çıkış yüksekliği</h3><p>Uygulamalara giden son ses seviyesi. Hedefi seç: görüşme uygulamaları için yayın standardı (−23 LUFS), kayıt ve canlı yayın için daha yüksek (−16 LUFS). Sürgü ince ayardır.</p></div><span></span>
+      <div class="body"><div class="row amtrow"><span class="lbl" id="loudlabel">Hedef</span>
+        <div class="seg" id="louds" role="group" aria-labelledby="loudlabel"><button type="button" data-loud="gorusme">Görüşme · −23 LUFS</button><button type="button" data-loud="yayin">Yayın · −16 LUFS</button></div></div></div>
+      <div class="body"><div class="sl"><label for="out_db">Yükseklik</label><input type="range" id="out_db"><output class="num" for="out_db"></output></div></div></div>
+
+    <div class="row"><span class="grow"></span><button class="btn" id="reset" type="button">Bu modun ayarlarına dön</button></div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-try">
+    <h2 id="h-try">Dene: kaydet ve dinle</h2>
+    <div class="row" style="margin-top:0">
+      <button class="btn" id="trybtn" type="button">8 saniye kaydet, sonra dinlet</button>
+      <span class="grow"></span>
+    </div>
+    <div class="steps" id="steps" aria-live="polite">
+      <span data-ph="kayit">1 · Konuş (kayıt)</span><span data-ph="ham">2 · Ham mikrofon çalıyor</span><span data-ph="temiz">3 · İşlenmiş ses çalıyor</span>
+    </div>
+    <p class="note">Aynı konuşman iki hâliyle arka arkaya çalınır; ayarın işe yarayıp yaramadığını duymanın en net yolu budur. Canlı dinlemenin aksine gecikme yoktur.</p>
+  </section>
+
+  <section class="panel" aria-labelledby="h-mon">
+    <h2 id="h-mon">Kendini duy</h2>
+    <div class="seg" id="mon" role="group" aria-label="Canlı dinleme">
+      <button type="button" data-mon="off">Kapalı</button>
+      <button type="button" data-mon="temiz">İşlenmiş ses</button>
+      <button type="button" data-mon="ham">Ham mikrofon</button>
+    </div>
+    <p class="note">Görüşme uygulamaları ve tarayıcılar çoğu zaman kendi gürültü bastırmasını ve otomatik ses ayarını da uygular; ikisi üst üste binerse ses bozulur. Uygulamada mikrofon olarak <b id="cleanname">Mikrofon (temiz)</b> seçiliyse oradaki gürültü bastırmayı kapat.</p>
+    <p class="note">Sesin varsayılan çıkışa gider; yalnız kulaklıkta açılır (hoparlörde mikrofon kendi sesini duyup öter). Bluetooth kulaklıkta yaklaşık çeyrek saniye geriden gelir.</p>
+  </section>
+
+  <section class="panel" aria-labelledby="h-diag" id="diagpanel">
+    <div class="row head"><h2 id="h-diag">Teşhis kaydı</h2><span class="chip" id="diagchip"><span>0 / 4</span></span></div>
+    <p class="hint">Sesindeki ağız tıkı, patlamalı sesler ve oda gürültüsü için ince ayar, senin gerçek kaydın olmadan yapılamıyor. Altı kısa kayıt yeter (yaklaşık 1,5 dakika); “Rehberli kayıt”a bas: ne yapacağın ekranda büyük yazıyla, geri sayımla gösterilir; eksik ya da geçersiz adımlar sırayla kaydedilir. Ayarların değişmez, kayıt çalınmaz.</p>
+    <div class="row"><button class="btn primary" id="diagguide" type="button">Rehberli kayıt</button><button class="btn" id="diagstop" type="button" hidden>Durdur</button></div>
+    <div class="guide" id="guidebox" role="status" aria-live="assertive" hidden><b id="guidehead"></b><p id="guidetext"></p><span id="guidecount"></span></div>
+    <ol class="diag" id="diaglist"></ol>
+    <p class="hint" id="diagroom" hidden></p>
+    <div class="row"><button class="btn" id="diagdel" type="button" disabled>Kayıtları sil</button></div>
+    <p class="note">Kayıtlar işlenmemiş mikrofon sesidir; yalnız bu bilgisayarda, yalnız senin okuyabildiğin bir klasörde durur ve hiçbir yere gönderilmez.</p>
+  </section>
+</main>
+<script>
+"use strict";
+const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const UNIT = { auto_max_db: v => "+" + v + " dB", auto_target: v => String(v).replace("-", "−") + " LUFS", auto_silence: v => String(v).replace("-", "−") + " LUFS", boost_db: v => "+" + v + " dB", level_thresh_db: v => v + " dB", level_ratio: v => v + " : 1", denoise_db: v => v + " dB",
+  gate_thresh_db: v => v + " dB", gate_depth_db: v => "−" + v + " dB", out_db: v => (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v) + " dB" };
+const SDB = v => (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v) + " dB", HZ = v => v >= 1000 ? (v / 1000).toLocaleString("tr-TR") + " kHz" : v + " Hz";
+for (const k of ["low", "mud", "box", "nasal", "pres", "air"]) UNIT["tone_" + k + "_db"] = SDB;
+UNIT.tone_hp_hz = HZ; UNIT.tone_lp_hz = HZ; UNIT.sat_db = v => v + " / 24"; UNIT.deess_thresh_db = v => v + " dB"; UNIT.dyn_mud_db = v => v + " dB"; UNIT.pitch_st = v => (v > 0 ? "+" : "") + String(v).replace("-", "−"); UNIT.dyn_body_db = v => "+" + v + " dB"; UNIT.dyn_harsh_db = v => v + " dB";
+const CHAR_NAME = { notr: "Nötr", sicak: "Sıcak", parlak: "Parlak", radyo: "Radyo", derin: "Derin", yakin: "Yakın", telefon: "Telefon", megafon: "Megafon", kalin: "Kalın", iri: "İri", ozel: "Elle ayarlandı" };
+const MODE_NAME = { normal: "Normal", fisilti: "Fısıltı", gece: "Gece", ham: "Ham", ozel: "Elle ayarlandı" };
+let S = null, pending = {}, timer = 0;
+/* Anahtar adres parçasından (#k=…) gelir, bu kökene (port dahil) özel depoda durur, adresten silinir. Çerez yok.
+   Adresteki aday anahtar ÖNCE sunucuda sınanır; geçersizse yok sayılır ve kayıtlı anahtar korunur
+   (başka bir sitenin "#k=uydurma" bağlantısıyla kayıtlı anahtarı ezip paneli kilitlemesi engellenir). */
+let KEY = "", CANDIDATE = "";
+try { KEY = localStorage.getItem("mic-key") || ""; } catch (e) {}
+{ const m = location.hash.match(/^#k=([\w-]{32,128})$/); if (m) CANDIDATE = m[1]; if (location.hash) history.replaceState(null, "", "/"); }
+async function adoptKey() {
+  if (!CANDIDATE || CANDIDATE === KEY) return;
+  try { const r = await fetch("/api/state", { headers: { "X-Mic-Console": "1", "X-Mic-Key": CANDIDATE } });
+    if (r.ok) { KEY = CANDIDATE; try { localStorage.setItem("mic-key", KEY); } catch (e) {} } } catch (e) {}
+  CANDIDATE = "";
+}
+
+async function api(path, body) {
+  const r = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json", "X-Mic-Console": "1", "X-Mic-Key": KEY }, body: JSON.stringify(body) } : { headers: { "X-Mic-Console": "1", "X-Mic-Key": KEY } });
+  const j = await r.json();
+  if (r.status === 401) throw new Error("anahtar yok ya da eski — terminalde `mic console` yazıp verdiği adresi aç");
+  if (!r.ok) throw new Error(j.error || r.status);
+  return j;
+}
+const UI = "__UI_VERSION__";   /* sunucu sayfayı verirken doldurur; durum yanıtındaki sürümle karşılaştırılır */
+let staleShown = false;
+function stale(d) {
+  if (staleShown || !d || !d.ui || d.ui === UI) return;
+  staleShown = true;
+  const b = document.createElement("div"); b.className = "msg"; b.setAttribute("role", "alert");
+  b.textContent = "Panel güncellendi; bu sekme eski hâlini gösteriyor. ";
+  const btn = document.createElement("button"); btn.className = "btn"; btn.type = "button"; btn.textContent = "Sayfayı yenile";
+  btn.addEventListener("click", () => location.reload()); b.append(btn);
+  $("#msg").before(b);
+}
+function say(t) { const m = $("#msg"); m.textContent = t || ""; m.hidden = !t; }
+
+function render(d) {
+  stale(d);
+  S = d;
+  for (const c of d.controls) {
+    const el = document.getElementById(c.key);
+    if (c.type === "range" && el) {
+      el.min = c.min; el.max = c.max; el.step = c.step;
+      if (document.activeElement !== el || !(c.key in pending)) el.value = d.state[c.key];
+      el.nextElementSibling.textContent = UNIT[c.key](+el.value);
+    }
+  }
+  for (const b of $$(".sw")) b.setAttribute("aria-checked", String(!!d.state[b.dataset.key]));
+  for (const st of $$("[data-sw]")) { const on = !!d.state[st.dataset.sw]; st.classList.toggle("on", on); st.classList.toggle("off", !on); }
+  for (const b of $$("#modes button")) b.setAttribute("aria-pressed", String(b.dataset.mode === d.mode));
+  for (const b of $$("#mon button")) b.setAttribute("aria-pressed", String(b.dataset.mon === d.monitor));
+  const uc = d.user_characters.join("|");
+  if (uc !== UC) { UC = uc;   /* kendi karakterlerim: karakter ve dinleme satırlarına düğme olarak eklenir */
+    for (const b of $$("#chars button[data-user], #audplay button[data-user]")) b.remove();
+    for (const n of d.user_characters) {
+      const b = document.createElement("button"); b.type = "button"; b.dataset.char = "user:" + n; b.dataset.user = "1"; b.textContent = n;
+      const sm = document.createElement("small"); sm.textContent = "benim karakterim"; b.append(sm); $("#chars").append(b);
+      const p = document.createElement("button"); p.type = "button"; p.dataset.id = "user:" + n; p.dataset.user = "1"; p.textContent = "▶ " + n; $("#audplay").append(p); } }
+  const isUser = d.character.startsWith("user:"), builtin = d.characters.includes(d.character);
+  for (const b of $$("#chars button")) b.setAttribute("aria-pressed", String(b.dataset.char === d.character));
+  for (const b of $$("#louds button")) b.setAttribute("aria-pressed", String(b.dataset.loud === d.loudness));
+  for (const b of $$("#amts button")) { b.setAttribute("aria-pressed", String(builtin && d.character !== "notr" && b.dataset.amt === d.amount)); b.disabled = !builtin || d.character === "notr"; }
+  $("#charsave").hidden = d.character !== "ozel"; $("#chardel").hidden = !isUser;
+  $("#charchip span").textContent = isUser ? d.character.slice(5) : (CHAR_NAME[d.character] || d.character) + (builtin && d.character !== "notr" && d.amount !== "orta" ? " · " + AMT_NAME[d.amount] : "");
+  const user = d.mode.startsWith("user:") ? d.mode.slice(5) : "";
+  $("#modechip span").textContent = user ? "Profil: " + user : d.mode === "ozel" ? "Elle ayarlandı (" + (MODE_NAME[d.base] || d.base.replace("user:", "")) + " üzerinden)" : (MODE_NAME[d.mode] || d.mode);
+  const sel = $("#profsel"); sel.replaceChildren(new Option("Profillerim…", ""), ...d.profiles.map(p => new Option(p, p))); sel.value = user;
+  $("#profdel").hidden = !user;
+  $("#hpf").textContent = d.hpf_hz;
+  const svc = $("#svc"); svc.className = "chip " + (d.service ? "ok" : "bad"); svc.lastElementChild.textContent = d.service ? "zincir çalışıyor" : "zincir kapalı";
+  const mc = $("#micchip"); mc.hidden = false; mc.className = "chip " + (d.mic ? "ok" : "bad"); mc.lastElementChild.textContent = d.mic ? "mikrofon bağlı" : "mikrofon takılı değil";
+  $("#cleanname").textContent = (d.label || "Mikrofon") + " (temiz)";
+  const q = d.quality || { state: "yok" }, qc = $("#qchip"), qs = (q.delay_ms / 1000).toLocaleString("tr-TR") + " sn";
+  qc.hidden = q.state === "yok";
+  qc.className = "chip" + ({ etkin: " ok", hazirlaniyor: " warn", kilitli: " bad" }[q.state] || "");
+  qc.lastElementChild.textContent = "kalite mikrofonu: " + ({ bosta: "boşta", hazirlaniyor: "model yükleniyor", etkin: "etkin · " + qs + " gecikmeli", kilitli: "çalışmıyor" }[q.state] || "");
+  qc.title = "İkinci mikrofon: “" + (q.name || "") + "”. Bir uygulamada onu seçince daha güçlü gürültü giderici çalışır; ses " + qs +
+    " gecikir. Kayıt, sesli mesaj ve yayın için; canlı görüşmede olağan mikrofonu kullan." +
+    (q.state === "kilitli" ? " Şu an model başlatılamıyor (ekran kartı belleği ya da model dosyası); mikrofon olağan sesle çalışır." : "");
+  const dc = $("#dropchip"); dc.hidden = !d.dropouts; dc.className = "chip warn"; dc.lastElementChild.textContent = "son 10 dk: " + d.dropouts + " ses kesintisi";
+  const live = d.monitor !== "off", lb = $("#livebtn");
+  lb.setAttribute("aria-pressed", String(live)); lb.textContent = live ? "Canlı dinleme AÇIK — kapat" : "Canlı dinle";
+  $("#livehint").textContent = live ? "Konuş ve karakter değiştir; fark anında duyulur (Bluetooth'ta çeyrek saniye geriden gelir)." : "Aç, konuş ve karakter değiştir: sesini kulaklıktan anında duyarsın.";
+  const A = d.audition, busy = A.phase !== "idle";
+  $("#audchip span").textContent = A.phase === "kayit" ? "konuş, kaydediyor…" : A.phase === "caliyor" ? "çalıyor: " + (AUD_NAME[A.id] || CHAR_NAME[A.id] || A.id) : A.take ? "kayıt hazır" : "kayıt yok";
+  $("#audchip").className = "chip " + (busy ? "warn" : A.take ? "ok" : "");
+  $("#audrec").disabled = busy || d.trial !== "idle"; $("#audstop").hidden = !busy;
+  for (const b of $$("#audplay button")) { b.disabled = !A.take || busy; b.setAttribute("aria-pressed", String(A.phase === "caliyor" && b.dataset.id === A.id)); }
+  $("#audmeasure").disabled = !A.take || busy;
+  if (!A.take) $("#delivery").hidden = true;
+  if (busy) { clearTimeout(audTimer); audTimer = setTimeout(refresh, 400); }
+  for (const sp of $$("#steps span")) sp.classList.toggle("now", sp.dataset.ph === d.trial);
+  $("#trybtn").disabled = d.trial !== "idle";
+  if (d.trial !== "idle") { clearTimeout(trialTimer); trialTimer = setTimeout(refresh, 500); }
+  const G = d.diag || { phase: "idle", steps: [] }, gbusy = G.phase !== "idle", gdone = G.steps.filter(x => x.done && !x.warn).length, gl = $("#diaglist");   // uyarılı kayıt sayılmaz
+  $("#diagguide").disabled = guiding || gbusy || busy || d.trial !== "idle" || gdone === G.steps.length;
+  $("#diagchip").className = "chip" + (gbusy ? " warn" : gdone === G.steps.length && gdone ? " ok" : "");
+  $("#diagchip").lastElementChild.textContent = gbusy ? "kayıt sürüyor…" : gdone + " / " + G.steps.length;
+  $("#diagdel").disabled = gbusy || !gdone;
+  gl.replaceChildren(...G.steps.map(x => {
+    const li = document.createElement("li"), b = document.createElement("b"), p = document.createElement("p"), st = document.createElement("span"), bt = document.createElement("button");
+    const rec = gbusy && G.step === x.id;
+    b.textContent = x.title; p.textContent = x.prompt; bt.type = "button"; bt.className = "btn";
+    bt.textContent = rec ? "Kaydediliyor…" : (x.done ? "Yeniden kaydet" : "Kaydet") + " (" + x.seconds + " sn)";
+    bt.disabled = guiding || gbusy || busy || d.trial !== "idle";
+    bt.addEventListener("click", act(() => api("/api/diag", { action: "record", step: x.id })));
+    st.className = "st" + (rec ? "" : x.warn ? " warn" : x.done ? " ok" : "");
+    st.textContent = rec ? "Şimdi: " + x.prompt : x.warn ? x.warn : x.done ? "Kaydedildi · seviye " + String(x.level_db).replace(".", ",").replace("-", "−") + " dBFS" : "Henüz kaydedilmedi";
+    li.append(b, bt, p, st); return li;
+  }));
+  const R = G.room, rp = $("#diagroom"), nm = { normal: "Normal", fisilti: "Fısıltı", gece: "Gece" }, tr = v => String(v).replace(".", ",").replace("-", "−");
+  rp.hidden = !R;
+  if (R) {
+    const bad = Object.keys(R.modes).filter(k => !R.modes[k].ok);
+    rp.className = "hint" + (bad.length ? " clip" : "");
+    rp.textContent = "Odanın gürültüsü " + tr(R.room_lufs) + " LUFS. Sessizlik eşiğine pay: " +
+      Object.keys(R.modes).map(k => nm[k] + " " + tr(R.modes[k].margin_db) + " dB").join(" · ") + ". " +
+      (bad.length ? bad.map(k => nm[k]).join(" ve ") + " modunda pay " + tr(R.min_margin_db) + " dB'in altında: sen susarken dip ses yükselebilir. Mikrofonun halkasını biraz kıs ya da daha sessiz bir yerde yeniden kaydet."
+                  : "Hepsi yeterli (en az " + tr(R.min_margin_db) + " dB).");
+  }
+  if (gbusy) { $("#audrec").disabled = true; $("#trybtn").disabled = true; clearTimeout(diagTimer); diagTimer = setTimeout(refresh, 500); }   // sunucu da reddeder; düğme baştan kapalı dursun
+  say(d.message || (!d.mic ? "Mikrofon görünmüyor: USB kablosunu kontrol et." : d.service ? "" : "Mikrofon zinciri çalışmıyor: systemctl --user start mic-clean.service"));
+}
+let trialTimer = 0, audTimer = 0, diagTimer = 0, guiding = false, guideStop = false;
+const AMT_NAME = { hafif: "hafif", orta: "orta", guclu: "güçlü", cok: "en güçlü" }; let UC = null;
+const AUD_NAME = { off: "tonsuz", current: "şu anki ayarım" };
+async function refresh() { try { render(await api("/api/state")); } catch (e) { say("Panel güncellenemedi: " + e.message); } }
+function queue(key, value) {
+  pending[key] = value; clearTimeout(timer);
+  timer = setTimeout(async () => { const p = pending; pending = {}; try { render(await api("/api/state", { patch: p })); } catch (e) { say("Ayar uygulanamadı: " + e.message); } }, 70);
+}
+for (const el of $$("input[type=range]")) el.addEventListener("input", () => { el.nextElementSibling.textContent = UNIT[el.id](+el.value); queue(el.id, +el.value); });
+for (const b of $$(".sw")) b.addEventListener("click", () => queue(b.dataset.key, b.getAttribute("aria-checked") !== "true"));
+const act = fn => async ev => { try { render(await fn(ev)); } catch (e) { say("İşlem yapılamadı: " + e.message); } };
+for (const b of $$("#modes button")) b.addEventListener("click", act(() => api("/api/preset", { id: b.dataset.mode })));
+for (const b of $$("#mon button")) b.addEventListener("click", act(() => api("/api/monitor", { mode: b.dataset.mon })));
+const pick = (root, fn) => $(root).addEventListener("click", ev => { const b = ev.target.closest("button"); if (b && !b.disabled) act(() => fn(b))(ev); });
+pick("#chars", b => api("/api/character", { id: b.dataset.char }));
+pick("#amts", b => api("/api/character", { id: S.character, amount: b.dataset.amt }));
+pick("#louds", b => api("/api/loudness", { target: b.dataset.loud }));
+$("#charsavebtn").addEventListener("click", act(async () => { const d = await api("/api/character", { save: $("#charname").value.trim() }); $("#charname").value = ""; return d; }));
+$("#chardelbtn").addEventListener("click", act(() => api("/api/character", { delete: S.character.slice(5) })));
+$("#livebtn").addEventListener("click", act(() => api("/api/monitor", { mode: S.monitor === "off" ? "temiz" : "off" })));
+const DV_UNIT = { integrated: " LUFS", true_peak: " dBTP", floor: " dBFS", clicks_per_min: " /dk", lra: " LU" };
+const DV_OK = { integrated: (v, t) => v >= t.integrated[0] - 1 && v <= t.integrated[1] + 1, true_peak: (v, t) => v <= t.true_peak, floor: (v, t) => v <= t.floor,
+  clicks_per_min: () => null, lra: v => v <= 10 };   /* tık: kalibre edilene dek iyi/kötü rengi verilmez */
+$("#audmeasure").addEventListener("click", async () => {
+  const btn = $("#audmeasure"); btn.disabled = true; btn.textContent = "Ölçülüyor…";
+  try { const d = await api("/api/delivery");
+    if (!d.ok) { say(d.message); $("#delivery").hidden = true; }
+    else { say(""); $("#delivery").hidden = false; $("#dvloud").textContent = d.targets.loudness_goal == null ? "hedef −23 … −16 LUFS" : "hedef ≈ " + fmt1(d.targets.loudness_goal) + " LUFS"; $("#clkin").textContent = fmt1(d.measures.clicks_in_per_min);
+      for (const el of $$("#delivery .dv")) { const k = el.dataset.k, v = d.measures[k];
+        el.firstElementChild.textContent = v == null ? "ölçülemedi" : fmt1(v) + DV_UNIT[k];
+        const ok = v == null ? null : DV_OK[k](v, d.targets);
+        el.className = "dv " + (ok == null ? "" : ok ? "ok" : "warn"); } }
+  } catch (e) { say("Ölçülemedi: " + e.message); }
+  btn.textContent = "Kaydı ölç (şu anki ayarımla)"; btn.disabled = !S.audition.take;
+});
+const fmt1 = v => v == null ? "—" : (Math.round(v * 10) / 10).toLocaleString("tr-TR").replace("-", "−");
+/* Rehberli kayıt: eksik ya da uyarılı adımları sırayla alır; her adımdan önce 5 sn hazırlık, kayıt boyunca yönerge ve kalan süre ekranda. */
+const pause = ms => new Promise(r => setTimeout(r, ms));
+async function guide() {
+  const box = $("#guidebox"), show = (h, t, c, rec) => { $("#guidehead").textContent = h; $("#guidetext").textContent = t; $("#guidecount").textContent = c; box.classList.toggle("rec", !!rec); };
+  guiding = true; guideStop = false; box.hidden = false; $("#diagstop").hidden = false; box.scrollIntoView({ block: "center" });
+  try {
+    let d = await api("/api/state"); render(d);
+    for (const x of d.diag.steps.filter(x => !x.done || x.warn)) {
+      for (let n = 5; n > 0 && !guideStop; n--) { show("Hazırlan — " + x.title, x.prompt, n + " sn sonra kayıt"); await pause(1000); }
+      if (guideStop) break;
+      d = await api("/api/diag", { action: "record", step: x.id }); render(d);
+      if (d.message) { show("Kayıt başlamadı", d.message, ""); await pause(4000); break; }
+      const t0 = Date.now();
+      do { show("● KAYIT — " + x.title, x.prompt, Math.max(0, Math.ceil(x.seconds - (Date.now() - t0) / 1000)) + " sn", true); await pause(250); d = await api("/api/state"); }
+      while (d.diag.phase !== "idle" && Date.now() - t0 < (x.seconds + 6) * 1000);
+      render(d);
+      const r = d.diag.steps.find(y => y.id === x.id) || {};
+      show(r.warn ? "Olmadı — " + x.title : "Tamam — " + x.title, r.warn || "Kaydedildi.", "");
+      await pause(r.warn ? 4500 : 1800);
+    }
+  } catch (e) { say("Rehberli kayıt yapılamadı: " + e.message); }
+  guiding = false; box.hidden = true; $("#diagstop").hidden = true; refresh();
+}
+$("#diagguide").addEventListener("click", guide);
+$("#diagstop").addEventListener("click", () => { guideStop = true; });
+$("#diagdel").addEventListener("click", act(() => api("/api/diag", { action: "delete" })));
+$("#audrec").addEventListener("click", act(() => api("/api/audition", { action: "record", seconds: 8 })));
+$("#audstop").addEventListener("click", act(() => api("/api/audition", { action: "stop" })));
+pick("#audplay", b => api("/api/audition", { action: "play", id: b.dataset.id }));
+$("#trybtn").addEventListener("click", act(() => api("/api/trial", { seconds: 8 })));
+setInterval(() => { if (!document.hidden && !Object.keys(pending).length) refresh(); }, 20000);   /* bağlantı/kesinti durumu; sayfa gizliyken koşmaz */
+$("#reset").addEventListener("click", act(() => api("/api/preset", { id: S.base })));
+$("#profsel").addEventListener("change", act(ev => ev.target.value ? api("/api/preset", { id: "user:" + ev.target.value }) : api("/api/state")));
+$("#profsave").addEventListener("click", act(() => api("/api/profile", { save: ($("#profname").value || $("#profsel").value).trim().toLowerCase() })));
+$("#profdel").addEventListener("click", act(() => api("/api/profile", { delete: $("#profsel").value })));
+$("#theme").addEventListener("click", () => { const r = document.documentElement, dark = getComputedStyle(r).colorScheme.includes("dark");
+  r.dataset.theme = dark ? "light" : "dark"; try { localStorage.setItem("mic-theme", r.dataset.theme); } catch (e) {} });
+try { const t = localStorage.getItem("mic-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+
+/* seviye: −60…0 dB → 0…1; hedef bölge −30…−12 dB. Yalnız sayfa görünürken bağlanır. */
+const pos = db => Math.min(1, Math.max(0, (db + 60) / 60));
+/* Hedef bölge bu zincirin kendi çıkışından: fısıltı ≈ −30, normal ≈ −25 dBFS (ölçüm) → −34…−18. */
+$("#zone").style.left = pos(-34) * 100 + "%"; $("#zone").style.width = (pos(-18) - pos(-34)) * 100 + "%";
+let es = null, clipAt = 0, liveAt = 0, zeroAt = 0, meterAt = 0; const hold = { in: [-120, 0], out: [-120, 0] };
+/* Zincirin o anki toplam kazancı = çıkış − mikrofon (yalnız konuşurken; son ~1,5 sn'nin ortancası). Eklenti göstergeleri canlı grafikten
+   okunamıyor (filter-chain yalnız giriş kontrollerini sunar), bu yüzden iki uçtan ölçülür: seviyeleyici + kompresör + çıkış kazancı birlikte. */
+const cg = { last: { in: -120, out: -120 }, buf: [], at: 0 };
+function chainGainText(buf) {
+  if (buf.length < 5) return "";
+  const m = [...buf].sort((a, b) => a - b)[buf.length >> 1], r = Math.round(m);
+  return "Zincir sesini şu an " + (r === 0 ? "olduğu seviyede bırakıyor" : (r > 0 ? r + " dB yükseltiyor" : Math.abs(r) + " dB kısıyor")) + ".";
+}
+function chainGain(key, rms, now) {
+  cg.last[key] = rms;
+  if (key !== "out") return;
+  if (cg.last.in > -50 && rms > -119) { cg.buf.push(rms - cg.last.in); if (cg.buf.length > 15) cg.buf.shift(); cg.at = now; }
+  else if (now - cg.at > 4000) cg.buf.length = 0;
+  const t = chainGainText(cg.buf), el = $("#chaingain"); el.hidden = !t; if (t) el.textContent = t;
+}
+function draw(key, [rms, pk]) {
+  const bar = $("#bar-" + key), now = performance.now();
+  if (pk >= hold[key][0] || now - hold[key][1] > 1200) hold[key] = [pk, now];
+  bar.children[bar.children.length - 2].style.transform = "scaleX(" + pos(rms) + ")";
+  bar.children[bar.children.length - 2].classList.toggle("hot", pk > -1);
+  bar.lastElementChild.style.left = "calc(" + pos(hold[key][0]) * 100 + "% - 1px)";
+  $("#val-" + key).textContent = rms <= -119 ? "—" : rms.toFixed(0) + " dB";
+  chainGain(key, rms, now);
+  if (key === "in" && pk > -0.5) clipAt = now;
+  /* Gerçek mikrofon asla tam sıfır vermez (öz gürültüsü var): saniyelerce tam dijital sessizlik = cihaz kendi tuşundan sessizde. */
+  if (key === "in") { if (pk > -119) liveAt = now; else if (!zeroAt || liveAt > zeroAt) zeroAt = now;
+    const muted = pk <= -119 && now - Math.max(liveAt, meterAt) > 3000;
+    const mu = $("#mutechip"); mu.hidden = !muted; }
+  $("#clip").hidden = now - clipAt > 4000 || !clipAt;
+}
+async function meterLoop(ctl) {   /* EventSource başlık taşıyamaz → akışlı fetch */
+  try {
+    const r = await fetch("/api/meter", { headers: { "X-Mic-Console": "1", "X-Mic-Key": KEY }, signal: ctl.signal });
+    if (!r.ok) return;
+    const rd = r.body.getReader(), dec = new TextDecoder(); let buf = "";
+    for (;;) {
+      const { value, done } = await rd.read(); if (done) break;
+      buf += dec.decode(value, { stream: true });
+      for (let i; (i = buf.indexOf("\n\n")) >= 0;) { const line = buf.slice(0, i); buf = buf.slice(i + 2);
+        if (line.startsWith("data: ")) { const d = JSON.parse(line.slice(6)); draw("in", d.in); draw("out", d.out); } }
+    }
+  } catch (e) {} finally { if (es === ctl) es = null; }
+}
+function meter(on) {
+  if (on && !es) { es = new AbortController(); meterAt = performance.now(); meterLoop(es); }
+  else if (!on && es) { es.abort(); es = null; $("#mutechip").hidden = true; }
+}
+document.addEventListener("visibilitychange", () => meter(!document.hidden));
+addEventListener("hashchange", () => { if (location.hash) history.replaceState(null, "", "/"); });   /* sayfa açıkken gelen #k= adreste kalmasın; anahtar değişmez */
+adoptKey().then(() => api("/api/state")).then(d => { render(d); meter(!document.hidden); }).catch(e => {
+  /* "bağlanıyor…" yazısında asılı kalma: neden açılmadığını ve ne yapılacağını söyle */
+  const svc = $("#svc"); svc.className = "chip bad"; svc.lastElementChild.textContent = KEY ? "bağlanamadı" : "bu tarayıcı yetkili değil";
+  say(KEY ? "Panel açılamadı: " + e.message
+          : "Bu tarayıcı henüz yetkilendirilmedi. Terminalde `mic console --open` yaz; panel yetkili olarak açılır. (Güvenlik için panel yalnız senin anahtarınla çalışır.)");
+});
+</script>
+</body>
+</html>

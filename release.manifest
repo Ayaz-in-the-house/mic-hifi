@@ -1,0 +1,19 @@
+# Yayın ağacına giren yollar (git pathspec; satır başına bir tane). Buraya yazılmayan hiçbir şey gönderilmez.
+# Gönderilmeyenler bilerek: docs/ (çalışma günlüğü ve araştırma notları), .claude/, AGENTS.md, CLAUDE.md, tools/experiments/.
+LICENSE
+NOTICE
+README.md
+CHANGELOG.md
+SECURITY.md
+CONTRIBUTING.md
+.gitignore
+plugins.lock.json
+requirements.txt
+release.manifest
+bin
+conf
+console
+heavy
+tests
+tools
+:(exclude)tools/experiments

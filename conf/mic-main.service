@@ -1,0 +1,22 @@
+[Unit]
+Description=mic-hifi: taşıyıcı anahtarlayıcı (mikrofonun sahibi; kuru/ıslak karıştırıcı + tavan)
+Documentation=file:@ROOT@/docs/PRD-VOICE.md
+After=pipewire.service wireplumber.service mic-clean.service
+BindsTo=pipewire.service
+
+[Service]
+Type=simple
+ExecStartPre=/usr/bin/sh -c '/usr/bin/python3 @ROOT@/tools/carrier.py > %t/mic-hifi/mic-main.conf'
+ExecStart=/usr/bin/pipewire -c %t/mic-hifi/mic-main.conf
+RuntimeDirectory=mic-hifi
+RuntimeDirectoryPreserve=yes
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+Slice=session.slice
+# Ses yolu diskten sayfa beklememeli (mic-clean ile aynı gerekçe, docs/PRD-QUALITY.md A0).
+MemorySwapMax=0
+MemoryLow=64M
+
+[Install]
+WantedBy=default.target

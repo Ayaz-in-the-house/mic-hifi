@@ -1,0 +1,27 @@
+[Unit]
+Description=mic-hifi: temiz mikrofon (PipeWire filter-chain, ayrı süreç)
+After=pipewire.service wireplumber.service
+BindsTo=pipewire.service
+
+[Service]
+Type=simple
+# Hedef mikrofon görünmeden başlama: yeniden başlatmada kart profili kayabiliyor (E29) ve hedefsiz başlayan zincir toparlanmıyor (E30).
+# Önce eklenti kapısı: kullanıcı dizinindeki ikili eklentilerin özeti kilitle (plugins.lock.json) aynı değilse zincir başlamaz (çıkış 78).
+ExecStartPre=/usr/bin/python3 @ROOT@/tools/prio.py --plugin-gate
+ExecStartPre=/usr/bin/python3 @ROOT@/tools/prio.py --prestart
+ExecStart=/usr/bin/pipewire -c %E/mic-hifi/mic-clean.conf
+# Temiz kaynak görününce varsayılan girişi hemen geri yaz (yalnız kullanıcının seçili varsayılanı oysa).
+ExecStartPost=/usr/bin/python3 @ROOT@/tools/prio.py --poststart
+Restart=on-failure
+RestartPreventExitStatus=78
+RestartSec=5
+NoNewPrivileges=yes
+Slice=session.slice
+# Bellek: ses yolu diskten sayfa beklememeli (ölçüldü 2026-10-11: süreç yarı yarıya takastaydı → "Underrun", RTF 4–12).
+# MemorySwapMax=0 → bu servisin belleği takasa hiç yazılmaz. MemoryLow → kod/model sayfaları (dosya destekli) bellek baskısında en son geri alınır.
+# MemoryMin BİLEREK yok: üst dilimin (session.slice) 250 MB'lık kesin koruması masaüstü kabuğu içindir.
+MemorySwapMax=0
+MemoryLow=192M
+
+[Install]
+WantedBy=default.target

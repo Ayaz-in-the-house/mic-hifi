@@ -1,0 +1,25 @@
+mic-hifi
+Copyright 2026 the mic-hifi authors
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This repository contains only its own source code. The third-party components below are used at run time,
+installed by the user from their own sources; NONE of them is distributed in this repository.
+
+| Component | License | How it is used | In this repository |
+|---|---|---|---|
+| PipeWire | MIT (Copyright 2018 Wim Taymans) | audio server; the generated filter-chain configuration follows the layout of its examples | no (configuration layout adapted) |
+| LSP Plugins (lsp-plugins-ladspa) | LGPL-3.0-or-later (parts Zlib) | loaded by PipeWire at run time, from the distribution package | no |
+| DeepFilterNet LADSPA plugin v0.5.6 | MIT OR Apache-2.0 (Copyright 2021 Hendrik Schröter) | downloaded by the user from upstream, pinned by sha256 | no |
+| DeepFilterNet3 model weights | no separate license statement found upstream (NOT verified) | embedded in the upstream plugin binary | no |
+| Rubber Band LADSPA plugin (ladspa-rubberband-plugins 4.0.0) | GPL-2.0-or-later | optional pitch shifting; loaded by PipeWire at run time from the distribution package | no |
+| MossFormer2_SE_48K (ClearerVoice-Studio) | Apache-2.0 | optional "quality" microphone and offline enhancement; source and weights kept outside the repository by the user | no |
+| LADSPA API | LGPL-2.1-or-later | interface re-declared via ctypes for offline measurement; the header is not copied | no |
+| JACK-Client (Python) | MIT | optional worker process dependency, installed from a lock file | no |
+| NumPy / SciPy / PyTorch / torchaudio | BSD-3-Clause (and compatible) | measurement, tests and the optional worker | no |
+
+Not included and not required: nvidia/RE-USE (NVIDIA One-Way Noncommercial License) and Seed-VC (GPL-3.0) were evaluated
+privately outside this repository; no code, weights or derived files from them are part of it.
+
+The licenses above were read from the distribution package metadata or the upstream license files at the versions named.
+This file is not legal advice.

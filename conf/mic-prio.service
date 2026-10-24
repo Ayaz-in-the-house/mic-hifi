@@ -1,0 +1,15 @@
+[Unit]
+Description=mic-hifi: gürültü bastırıcı iş parçacığına öncelik (olay güdümlü, rtkit)
+After=mic-clean.service pipewire-pulse.service
+BindsTo=mic-clean.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 @ROOT@/tools/prio.py --watch
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+Slice=session.slice
+
+[Install]
+WantedBy=mic-clean.service

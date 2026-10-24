@@ -1,0 +1,24 @@
+[Unit]
+Description=mic-hifi: gözcü (dinleyen varsa ağır işçiyi çalıştırır; ölüm/donmada kuruya çeker)
+Documentation=file:@ROOT@/docs/PRD-VOICE.md
+After=mic-main.service
+BindsTo=mic-main.service
+
+[Service]
+Type=simple
+# İşçi: gerçek model (MossFormer2_SE_48K) depo DIŞINDAKİ karantina ortamında koşar (docs/research/S-v4-model-triage.md). Ortam/ağırlık/GPU yoksa
+# işçi çıkış kodu 75 verir → gözcü kilitler, mikrofon kuru kalır.
+Environment=MIC_WORKER_CMD="pw-jack %h/.cache/mic-hifi-quarantine/v4env/bin/python @ROOT@/heavy/worker.py --model mossformer --delay-ms 1000 --block 18000 --window-ms 500 --status %t/mic-hifi/heavy.json"
+ExecStart=/usr/bin/python3 @ROOT@/tools/watch.py --worker-cmd "${MIC_WORKER_CMD}" --status %t/mic-hifi/heavy.json --model-src effect_output.mic_clean:capture_MONO --dry-src effect_output.mic_clean:capture_MONO --hold 20 --start-timeout 25 --events %t/mic-hifi/watch.jsonl
+RuntimeDirectory=mic-hifi
+RuntimeDirectoryPreserve=yes
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=yes
+# İşçi (model) bu birimin alt süreci: bellek tavanı ve öldürülme önceliği işçiyi de kapsar; mikrofonun sahibi (mic-main) ayrı birimde yaşar.
+MemoryMax=6G
+OOMScoreAdjust=300
+Slice=app.slice
+
+[Install]
+WantedBy=default.target

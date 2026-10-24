@@ -1,0 +1,14 @@
+[Unit]
+Description=mic-hifi: Mikrofon Konsolu (yerel panel, 127.0.0.1:8767)
+After=pipewire.service mic-clean.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 @ROOT@/console/server.py --port 8767
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+Slice=session.slice
+
+[Install]
+WantedBy=default.target

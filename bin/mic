@@ -1,0 +1,257 @@
+#!/usr/bin/env python3
+"""mic — USB mikrofon için dinleme, kıyaslama ve kurulum aracı.
+
+  mic status                    kaynaklar, varsayılanlar, canlı dinleme durumu
+  mic ab [saniye] [--keep]      ham + temiz AYNI ANDA kaydet, sonra sırayla çal (gecikme sorunu yok).
+                                Kayıtlar çalındıktan sonra SİLİNİR; saklamak için --keep (ya da çalmadan saklayan --no-play)
+  mic monitor on [ham|temiz]    kendi sesini canlı olarak çıkışa gönder (Bluetooth'ta ~0,25 sn gecikir)
+  mic monitor off               canlı dinlemeyi kapat
+  mic device [list|auto|set <kaynak adı>] [--label <ad>]
+                                hangi mikrofonun işleneceği: list = adaylar · auto = tek USB mikrofon varsa onu seç · set = elle seç
+  mic console [--open]          panel adresini yaz; --open ile doğrudan tarayıcıda yetkili olarak aç
+  mic enhance <giriş> <çıkış.wav> [--target-lufs -16] [--device auto|cuda|cpu]
+                                kayıtlı bir ses dosyasını yerelde iyileştir (gürültü giderme + dinlenir seviye); var olan dosyanın üstüne yazmaz
+  --sink <ad>                   çıkışı elle seç (varsayılan: sistemin varsayılan çıkışı)
+  --force                       kulaklık olmayan çıkışa canlı dinlemeyi yine de aç (ötme riski)
+"""
+import json, math, os, re, signal, subprocess, sys, time, wave, array
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "tools"))
+import chain
+
+RAW = chain.RAW_SOURCE   # aygıt ~/.config/mic-hifi/device.json'dan (bkz. `mic device`)
+CLEAN = "effect_output.mic_clean"
+SRC = {"ham": RAW, "temiz": CLEAN}
+RUN = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
+ENV = dict(os.environ, XDG_RUNTIME_DIR=RUN, DBUS_SESSION_BUS_ADDRESS=os.environ.get("DBUS_SESSION_BUS_ADDRESS", f"unix:path={RUN}/bus"))
+PIDFILE = os.path.join(RUN, "mic-hifi-monitor.pid")
+STATE = os.path.expanduser("~/.local/state/mic-hifi")
+HEADPHONES = {"headphone", "headset", "hands-free", "earbud"}
+
+
+def form_factor(sink):
+    p = sink.get("properties", {})
+    return p.get("device.form_factor") or p.get("device.form-factor") or ""
+
+
+def out(*cmd):
+    return subprocess.run(cmd, env=ENV, capture_output=True, text=True).stdout.strip()
+
+
+def sinks():
+    return {s["name"]: s for s in json.loads(out("pactl", "-f", "json", "list", "sinks") or "[]")}
+
+
+def pick_sink(args):
+    if "--sink" in args:
+        return args[args.index("--sink") + 1]
+    return out("pactl", "get-default-sink")
+
+
+def notify(msg):
+    subprocess.Popen(["notify-send", "-t", "4000", "mic", msg], env=ENV, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def monitor_pid():
+    try:
+        pid = int(open(PIDFILE).read())
+        if "pw-loopback" in open(f"/proc/{pid}/cmdline").read():
+            return pid
+    except (OSError, ValueError):
+        pass
+    return None
+
+
+def level(path):
+    w = wave.open(path)
+    a = array.array("h", w.readframes(w.getnframes()))[0::w.getnchannels()]
+    if not a:
+        return float("-inf"), float("-inf")
+    rms = math.sqrt(sum(v * v for v in a) / len(a))
+    pk = max(abs(v) for v in a)
+    db = lambda v: 20 * math.log10(v / 32768) if v else float("-inf")
+    return db(rms), db(pk)
+
+
+def cmd_status(args):
+    names = out("pactl", "list", "sources", "short")
+    for label, n in SRC.items():
+        print(f"{label:6} {'var' if n in names else 'YOK'}  {n}")
+    print("varsayılan giriş :", out("pactl", "get-default-source"))
+    sk = pick_sink(args)
+    s = sinks().get(sk, {})
+    print("çıkış            :", s.get("description", sk), f"[{form_factor(s) or '?'}]")
+    pid = monitor_pid()
+    print("canlı dinleme    :", f"AÇIK (pid {pid})" if pid else "kapalı")
+
+
+def cmd_ab(args):
+    secs = next((int(a) for a in args if a.isdigit()), 8)
+    keep = "--keep" in args or "--no-play" in args
+    os.umask(0o077)                        # ses kaydı kişisel veridir: yalnız sahibi okur
+    os.makedirs(STATE, mode=0o700, exist_ok=True)
+    os.chmod(STATE, 0o700)
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    files = {k: os.path.join(STATE, f"ab-{stamp}-{k}.wav") for k in SRC}
+    if monitor_pid():
+        sys.exit("canlı dinleme açık — önce: mic monitor off (yoksa kayda kendi yankın girer)")
+    try:
+        notify(f"KAYIT: {secs} sn konuş")
+        print(f"kayıt: {secs} sn — konuş…", flush=True)
+        recs = [subprocess.Popen(["pw-record", "--target", n, "--rate", "48000", "--channels", "1", "--format", "s16", files[k]],
+                                 env=ENV, stdout=subprocess.DEVNULL) for k, n in SRC.items()]
+        time.sleep(secs)
+        for r in recs:
+            r.terminate(); r.wait()
+        for k in SRC:
+            r, p = level(files[k])
+            print(f"  {k:6} RMS {r:6.1f} dBFS  tepe {p:6.1f} dBFS" + (f"  {files[k]}" if keep else ""))
+        if "--no-play" in args:
+            return
+        sk = pick_sink(args)
+        for k in SRC:
+            notify(f"ÇALIYOR: {k.upper()}")
+            print(f"çalıyor: {k}", flush=True)
+            try:
+                subprocess.run(["pw-play", "--target", sk, files[k]], env=ENV, timeout=secs + 6)
+            except subprocess.TimeoutExpired:
+                print(f"  çalınamadı (zaman aşımı): {k}")
+            time.sleep(0.6)
+    finally:
+        if not keep:                       # varsayılan: iz bırakma (hata olsa da)
+            for f in files.values():
+                try:
+                    os.remove(f)
+                except OSError:
+                    pass
+            print("kayıtlar silindi (saklamak için --keep)")
+
+
+def cmd_monitor(args):
+    pid = monitor_pid()
+    if "off" in args:
+        if pid:
+            os.kill(pid, signal.SIGTERM)
+            print(f"canlı dinleme kapatıldı (pid {pid})")
+        else:
+            print("canlı dinleme zaten kapalı")
+        if os.path.exists(PIDFILE):
+            os.remove(PIDFILE)
+        return
+    if "on" not in args:
+        sys.exit(__doc__)
+    if pid:
+        sys.exit(f"zaten açık (pid {pid}) — önce: mic monitor off")
+    which = "ham" if "ham" in args else "temiz"
+    sk = pick_sink(args)
+    s = sinks().get(sk)
+    if not s:
+        sys.exit(f"çıkış bulunamadı: {sk}")
+    ff = form_factor(s)
+    own = "alsa_output." + RAW.split("alsa_input.", 1)[-1].rsplit(".", 1)[0]   # mikrofonun kendi kulaklık çıkışı (varsa) hoparlör değildir
+    ok = ff in HEADPHONES or sk.startswith(own)  # bilinmeyen tür = hoparlör say (güvenli taraf)
+    if not ok and "--force" not in args:
+        sys.exit(f"REDDEDİLDİ: çıkış '{s.get('description', sk)}' kulaklık değil [{ff or 'tür bilinmiyor'}] — "
+                 "mikrofon kendi sesini duyar ve öter. Kulaklık bağla ya da --force ver.")
+    p = subprocess.Popen(["pw-loopback", "--name", "mic_monitor",
+                          "--capture-props", f"target.object={SRC[which]} node.passive=true node.dont-fallback=true",
+                          "--playback-props", f"target.object={sk} node.dont-fallback=true media.name=mic-monitor"],
+                         env=ENV, start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    open(PIDFILE, "w").write(str(p.pid))
+    print(f"canlı dinleme AÇIK: {which} → {s.get('description', sk)} (pid {p.pid}). Kapat: mic monitor off")
+    if sk.startswith("bluez_output"):
+        print("not: Bluetooth'ta sesin ~0,25 sn gecikmeli gelir; konuşurken rahatsız ederse 'mic ab' kullan.")
+
+
+def cmd_console(args):
+    url, port = "http://127.0.0.1:8767/", "8767"
+    if out("systemctl", "--user", "is-active", "mic-console.service") != "active":
+        subprocess.run(["systemctl", "--user", "start", "mic-console.service"], env=ENV, timeout=20)
+        time.sleep(1.5)
+    # Anahtarı vermeden önce: 8767'yi dinleyen GERÇEKTEN bizim servis mi? (başka bir süreç portu kapmışsa anahtar ona gitmesin)
+    main_pid = out("systemctl", "--user", "show", "-p", "MainPID", "--value", "mic-console.service")
+    listener = re.findall(r"pid=(\d+)", out("ss", "-H", "-ltnp", "sport = :" + port))
+    if not main_pid.isdigit() or main_pid == "0" or listener != [main_pid]:
+        sys.exit(f"REDDEDİLDİ: {port} portunu dinleyen süreç mic-console.service değil (servis pid {main_pid or '?'}, dinleyen {listener or 'yok'}). "
+                 "Anahtar verilmedi. Bak: systemctl --user status mic-console.service")
+    tok = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"), "mic-hifi", "token")
+    key = open(tok, encoding="ascii").read().strip() if os.path.exists(tok) else ""
+    if not key:
+        sys.exit("anahtar dosyası yok: " + tok)
+    if "--open" in args:   # anahtarlı adresi ekrana yazmadan doğrudan tarayıcıda aç (masaüstü oturumunun ortamıyla)
+        senv = dict(ENV)
+        for line in out("systemctl", "--user", "show-environment").splitlines():
+            k, _, v = line.partition("=")
+            if k in ("WAYLAND_DISPLAY", "DISPLAY", "XAUTHORITY", "XDG_CURRENT_DESKTOP", "DBUS_SESSION_BUS_ADDRESS"):
+                senv[k] = v
+        # Anahtar komut satırına YAZILMAZ (/proc/<pid>/cmdline'ı makinedeki herkes okuyabilir). Bunun yerine yalnız bizim
+        # okuyabildiğimiz (0600, 0700'lük çalışma dizininde) tek kullanımlık bir yönlendirme dosyası açılır ve hemen silinir.
+        import json as _json, tempfile
+        fd, launcher = tempfile.mkstemp(prefix="mic-console-", suffix=".html", dir=RUN)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write("<!doctype html><meta charset=utf-8><title>Mikrofon Konsolu</title><script>location.replace("
+                        + _json.dumps(url + "#k=" + key) + ")</script>")
+            rc = subprocess.run(["xdg-open", launcher], env=senv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15).returncode
+            time.sleep(4)   # tarayıcı dosyayı okusun
+        finally:
+            try:
+                os.remove(launcher)
+            except OSError:
+                pass
+        print("Panel tarayıcıda açıldı." if rc == 0 else "Tarayıcı açılamadı; `mic console` çıktısındaki adresi elle aç.")
+        return
+    print("Mikrofon Konsolu:", url + "#k=" + key)
+    print("(Bu adres kişisel anahtarını içerir; bir kez açman yeter, sonra", url, "çalışır. Kimseyle paylaşma.)")
+
+
+def cmd_device(args):
+    """Aygıt seçimi (docs/PRD-PUBLISH.md Y2a). Yazılan dosya: chain.DEVICE_FILE. Seçimden sonra: python3 tools/gen_conf.py && servisleri yeniden başlat."""
+    sub = args[0] if args else "list"
+    label = args[args.index("--label") + 1] if "--label" in args and args.index("--label") + 1 < len(args) else None
+    pick, cands = chain.discover_sources(out("pactl", "-f", "json", "list", "sources"))
+    if sub == "list":
+        print("şu an:", chain.RAW_SOURCE if chain.SOURCE_SET else "seçilmedi", f"· etiket: {chain.DEVICE_LABEL}")
+        print("USB mikrofon adayları:" if cands else "USB mikrofon bulunamadı (takılı mı?).")
+        for c in cands:
+            print("  " + c)
+        return
+    if sub == "auto":
+        if not pick:
+            sys.exit("tek bir USB mikrofon bulunamadı (" + (f"{len(cands)} aday" if cands else "aday yok") + "): `mic device list`, sonra `mic device set <ad>`")
+        name = pick
+    elif sub == "set" and len(args) >= 2 and not args[1].startswith("--"):
+        name = args[1]
+        if not re.fullmatch(r"[A-Za-z0-9_.:+-]{3,200}", name):
+            sys.exit("geçersiz kaynak adı")
+    else:
+        sys.exit(__doc__)
+    try:
+        cur = json.load(open(chain.DEVICE_FILE, encoding="utf-8"))
+        cur = cur if isinstance(cur, dict) else {}
+    except (OSError, ValueError):
+        cur = {}
+    cur["source"] = name
+    if label:
+        cur["label"] = label[:40]
+    os.makedirs(os.path.dirname(chain.DEVICE_FILE), mode=0o700, exist_ok=True)
+    tmp = chain.DEVICE_FILE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(cur, f, ensure_ascii=False, indent=1)
+    os.replace(tmp, chain.DEVICE_FILE)
+    print(f"seçildi: {name}" + (f" · etiket: {cur.get('label')}" if cur.get("label") else "") + ("" if name in cands else "  (UYARI: şu an bağlı adaylar arasında değil)"))
+    print("uygulamak için: python3 tools/gen_conf.py && systemctl --user restart mic-clean mic-console")
+
+
+def cmd_enhance(args):
+    """Model depo dışındaki karantina ortamında koşar (docs/research/S-v4-model-triage.md); ortam yoksa açık iletiyle çıkar."""
+    py = os.path.expanduser("~/.cache/mic-hifi-quarantine/v4env/bin/python")
+    if not os.path.exists(py):
+        sys.exit("kalite modeli ortamı kurulu değil: " + py + " (bkz. docs/research/S-v4-model-triage.md)")
+    tool = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "tools", "enhance.py")
+    sys.exit(subprocess.run([py, tool, *args]).returncode)
+
+
+if __name__ == "__main__":
+    a = sys.argv[1:]
+    {"status": cmd_status, "ab": cmd_ab, "monitor": cmd_monitor, "console": cmd_console, "enhance": cmd_enhance, "device": cmd_device}.get(a[0] if a else "", lambda _: sys.exit(__doc__))(a[1:])

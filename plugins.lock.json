@@ -1,0 +1,22 @@
+{
+ "_comment": "Kullanıcı dizinine kurulan ikili eklentilerin özet kilidi. tools/plugins.py check doğrular; zincir başlamadan önce denetlenir.",
+ "plugins": {
+  "deepfilter": {
+   "file": "libdeep_filter_ladspa.so",
+   "sha256": "2ca3205c2911d389604a826a240e745597d50252b5cab81c8248252b335e2236",
+   "size": 52711472,
+   "required": true,
+   "version": "v0.5.6",
+   "source": "https://github.com/Rikorose/DeepFilterNet/releases/tag/v0.5.6 (libdeep_filter_ladspa-0.5.6-x86_64-unknown-linux-gnu.so)",
+   "license": "MIT OR Apache-2.0"
+  },
+  "rubberband": {
+   "file": "ladspa-rubberband.so",
+   "sha256": "b7e61e16c28632fd5aa63ef0be46786d53f8b6f6feab236e29bf44cc60cd9f04",
+   "required": false,
+   "version": "4.0.0-5.fc44",
+   "source": "Fedora paketi ladspa-rubberband-plugins (tools/install_rubberband.sh)",
+   "license": "GPL-2.0-or-later"
+  }
+ }
+}
