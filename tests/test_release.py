@@ -7,7 +7,7 @@ Y4-3 gönderilen dosyaya kişisel veri ekilirse çıkış 1 ve hedef dizin bıra
 Y4-4 ağaç boş bir ev dizininde kendi testlerini koşar                                           neden: bu depoya/makineye bağlı olmamalı
 Y5-1 README/CHANGELOG/SECURITY/CONTRIBUTING yayın ağacında                                       neden: v1 şartı
 Y5-2 README'de adı geçen her dosya yolu ağaçta var                                             neden: belgede olmayan komut kullanıcıyı çıkmaza sokar
-Y5-3 README bölümleri: gereksinimler · kurulum · sınırlar · lisans · İngilizce özet            neden: okuyan neyi alıp almadığını bilmeli
+Y5-3 README iki dilli: README.md İngilizce + README.tr.md Türkçe, aynı bölümler, birbirine bağlantılı   neden: okuyan neyi alıp almadığını kendi dilinde bilmeli (kullanıcı 2026-10-25)
 Y4-6 kişisel veri DOSYA ADINDA ya da sembolik bağ ağaçta ise araç çıkış 1 verir, hedef bırakılmaz; araçta ortam değişkeniyle dosya ekleme kancası YOK
      neden: içerik taraması adları ve bağ hedeflerini görmez; sınama kancası üretim aracında arka kapıdır (güvenlik incelemesi bulguları)
 Y4-5 kaynak depoda `git status` temiz kalır                                                     neden: dışa aktarım kaynağı değiştirmez
@@ -36,14 +36,19 @@ with tempfile.TemporaryDirectory() as d:
     binf = [f for f in files if f.lower().endswith((".wav", ".flac", ".so", ".onnx", ".npz", ".npy", ".pt", ".pth", ".bin", ".safetensors"))]
     check("Y4-2", a is not None and a.returncode == 0 and not binf, f"denetim çıkışı {a.returncode if a else '—'} (0) {a.stdout.strip()[-80:] if a else ''} · ikili: {binf or 'yok'}")
     import re
-    docs = ["README.md", "CHANGELOG.md", "SECURITY.md", "CONTRIBUTING.md"]
+    docs = ["README.md", "README.tr.md", "CHANGELOG.md", "SECURITY.md", "CONTRIBUTING.md"]
     check("Y5-1", all(f in files for f in docs), f"eksik: {[f for f in docs if f not in files] or 'yok'}")
-    rd = open(os.path.join(out, "README.md"), encoding="utf-8").read() if "README.md" in files else ""
+    rd_en = open(os.path.join(out, "README.md"), encoding="utf-8").read() if "README.md" in files else ""
+    rd_tr = open(os.path.join(out, "README.tr.md"), encoding="utf-8").read() if "README.tr.md" in files else ""
+    rd = rd_en + "\n" + rd_tr
     paths = sorted(set(re.findall(r"(?<![\w/.~-])((?:bin|tools|tests|conf|console|heavy)/[A-Za-z0-9_./-]+\.[a-z]+|bin/mic)\b", rd)))
     missing = [p for p in paths if p not in files]
     check("Y5-2", bool(paths) and not missing, f"README'de {len(paths)} dosya yolu · ağaçta olmayan: {missing or 'yok'}")
-    heads = [h for h in ("## Gereksinimler", "## Kurulum", "## Sınırlar", "## Lisans", "## English summary") if h not in rd]
-    check("Y5-3", not heads and "kulakla" in rd.lower() and "PipeWire" in rd, f"eksik bölüm: {heads or 'yok'}")
+    heads = [h for h in ("## Requirements", "## Installation", "## Limitations", "## License", "## Roadmap") if h not in rd_en] + \
+            [h for h in ("## Gereksinimler", "## Kurulum", "## Sınırlar", "## Lisans", "## Yol haritası") if h not in rd_tr]
+    links = "](README.tr.md)" in rd_en and "](README.md)" in rd_tr
+    check("Y5-3", not heads and links and "by ear" in rd_en and "kulakla" in rd_tr.lower() and "PipeWire" in rd_en,
+          f"eksik bölüm: {heads or 'yok'} · dil bağlantısı: {'var' if links else 'YOK'}")
     # Y4-4: boş ev dizininde ağacın kendi testleri
     home = os.path.join(d, "ev"); os.makedirs(home)
     env = {k: v for k, v in os.environ.items() if k not in ("MIC_SOURCE", "XDG_CONFIG_HOME", "XDG_STATE_HOME", "MIC_PLUGIN_DIR")}
