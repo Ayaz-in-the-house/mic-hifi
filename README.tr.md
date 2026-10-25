@@ -78,7 +78,7 @@ Maliyet ve kazanç tahminidir; bu mikrofonda ölçülmedi.
 | Cihazın ADC'si destekliyorsa 24 bit / 48 kHz'i USB üzerinden açmak | Yalnız firmware | Alçak seslerde daha fazla pay, daha geniş bant |
 | Cihaz içi otomatik kazancı kapatılabilir yapmak (USB ses sınıfı denetimiyle) | Yalnız firmware | Yazılım zinciri öngörülebilir çalışır; kazanç "pompalaması" biter |
 | Varsayılan alçak kesimi (~80 Hz) cihazda açmak | Yalnız firmware | Bu mikrofonda gürültünün neredeyse tamamı 80 Hz altında: uğultu ve masa titreşimi kaynağında kesilir |
-| Kutuya köpük rüzgârlık / pop filtresi ve basit bir titreşim yalıtıcı koymak | Birkaç sent – birkaç euro | Patlamalı sesler ve masadan gelen titreşim azalır |
+| Aksesuarların ölçülmüş etkisini yayımlamak (bu model zaten pop filtresi ve titreşim yalıtıcıyla geliyor) | Sıfır | Kullanıcı ek sönümlemeye gerek olup olmadığını bilir |
 | Kontrol kanalını (HID) belgelemek | Belge yazmak | Ayarlar her platformdan güvenle yönetilir |
 | Ön yükselteçte düşük gürültülü besleme (temiz regülatör) | Çok düşük parça maliyeti | Öz gürültü düşer — yazılımın sonradan bastırmak zorunda kaldığı gürültü kaynağında azalır |
 
@@ -92,7 +92,9 @@ Maliyet ve kazanç tahminidir; bu mikrofonda ölçülmedi.
 
 | | |
 |---|---|
-| Mikrofon | **Nor-Tec streaming mic** (USB) — USB kimliği `3206:1278`, PipeWire'da `alsa_input.usb-Nor-Tec_streaming_mic_…` olarak görünür |
+| Mikrofon | **Nor-Tec streaming mic** (USB-C, Action'da satılıyor) — USB kimliği `3206:1278`, PipeWire'da `alsa_input.usb-Nor-Tec_streaming_mic_…` olarak görünür |
+| Üretici (kılavuza göre) | Schou Company A/S, Kolding, Danimarka · Çin'de üretilmiş |
+| Kılavuzdaki değerler | 80 Hz – 17 kHz · hassasiyet −39 ± 2 dB · S/N 67 dB · eşdeğer gürültü 27 dB · kardioid · 5 V, 4–210 mA · pop filtresi + titreşim yalıtıcı kutuda · dokunmatik susturma, LED |
 | Biçim | USB üzerinden 48 kHz, s16le, 2 kanal (ölçülen kullanılabilir bant ~17 kHz) |
 | Sistem | Fedora 44 · PipeWire 1.6.8 · WirePlumber |
 
