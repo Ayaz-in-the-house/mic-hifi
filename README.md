@@ -2,99 +2,16 @@
 
 # mic-hifi
 
-USB mikrofonun sesini PipeWire üzerinde katman katman işleyip **sanal bir mikrofon** olarak sunan yerel bir sistem ve onu yöneten küçük bir web paneli.
-Ses bilgisayarından çıkmaz; bulut yok, hesap yok.
+**English** · [Türkçe](README.tr.md)
 
-Zincir: alt kesim (95 Hz) → seviyeleyici (fısıltıyı yükseltir, sessizlikte donar) → kompresör → gürültü bastırma (DeepFilterNet3) → sessizlik kapısı →
-ton (8 bantlı dengeleyici, hazır karakterler) → çok bantlı dinamik (dolgunluk, şişme, sertlik, ıslık) → doygunluk → tavan sınırlayıcı.
-İsteğe bağlı: perde/ses yolu kaydırma ve ikinci, gecikmeli bir "kalite" mikrofonu (ekran kartında çalışan daha güçlü bir gürültü giderici).
+A local system that processes a USB microphone layer by layer on PipeWire and exposes the result as a **virtual microphone**, plus a small web panel to control it.
+Audio never leaves your computer: no cloud, no account.
 
-## Yol haritası — ne yapılırsa nereye ulaşılır
+Chain: high-pass (95 Hz) → leveller (lifts whispering, freezes in silence) → compressor → noise suppression (DeepFilterNet3) → silence gate →
+tone (8-band equaliser, ready-made characters) → multiband dynamics (fullness, boominess, harshness, sibilance) → saturation → ceiling limiter.
+Optional: pitch / vocal-tract shift and a second, delayed "quality" microphone (a stronger noise remover running on the graphics card).
 
-Temizleme zinciri ve panel ölçümle kuruldu ve canlıda çalışıyor. Mikrofonun kendisi (kapsül, konum, cihaz içi işlem) ve dinleyici tarafının doğrulaması ise henüz ayrıştırılmadı. Tablodaki kazançlar **beklentidir, ölçülmüş sonuç değildir**.
-
-| katman | bugün bilinen (yapıldı) | yapılmadı · test edilmedi · bilinmiyor | yapılınca nereye ulaşılır | nasıl / kaynak |
-|---|---|---|---|---|
-| **L1** akustik: kapsül, mesafe, oda | Gürültünün neredeyse tamamı 80 Hz altında; öz gürültü ~27 dB(A); 16 bit / ~17 kHz | Mikrofonun frekans yanıtı ölçülmedi (referans mikrofon yok) → ton düzeltmesi yok. Ağza mesafenin etkisi yalnız hesap (~+15 dB, ölçülmedi). Oda yankısı ele alınmadı | **En ucuz kazanç:** mikrofonu ağız kenarına 4–5 cm yaklaştırmak (bedava). Ölçülürse ton düzlenir, ses "kendi sesin" gibi duyulur | 5 dk mesafe ölçümü; referans mikrofon ya da bilinen kaynakla yanıt ölçümü |
-| **L2** cihaz: USB mikrofonun içi | Halka mikrofonun kazancını cihaz kendi içinde ayarlıyor; cihazın sessiz tuşu panelde görünüyor | Cihaz içi otomatik kazanç / işlem tam karakterize edilmedi. Üretici kontrol kanalına **bilerek yazılmıyor** | Cihazın kendi ayarıyla zincirin birbiriyle "yarışması" önlenir | Yalnız okuma ve ölçüm; cihaza komut gönderilmez |
-| **L3** Linux / PipeWire / yakalama | Sanal mikrofon; profil kayarsa bekçi kendiliğinden onarıyor; yeniden başlatma ~2,5 sn | Çok çekirdekli ağır yükte gürültü bastırıcı blok kaçırabiliyor (kısa kesinti) — **açık**; profil kaymasının kök nedeni adlandırılmadı | Yük altında da kesintisiz canlı kullanım | Bastırıcıyı ayrı bir işçi sürece taşımak (taşıyıcı tasarımı yalıtılmış örnekte test edildi) + uzun yük koşusu |
-| **L4** temizleme zinciri | **Güçlü:** fısıltı SNR 8,6 → 27,1 dB; seviyeleyici, kompresör, DeepFilterNet3, kapı, bölünmüş bantlı ıslık kısma, dinamik EQ; çıkış hedefi −23 / −16 LUFS, gerçek tepe ≤ −1 dBTP | Yalnız Fısıltı modu kabul testinden geçti; Normal ve Gece değerleri ölçümle oturtulmadı. Ağız sesi / çıtırtı canlıda yok, oda yankısı giderme yok, eko iptali denendi ama bağlanmadı. Çoğu ayar kulakla doğrulanmadı | Stüdyoya yakın teslim; hoparlörle görüşmede eko iptali | Kendi sesinle test seti kaydı (~20 dk) + panelin teşhis kaydı |
-| **L5** kalite hattı (ekran kartı) | İkinci, ~1 sn gecikmeli "kalite" mikrofonu canlıda (MossFormer2); kayıtlı dosyayı iyileştirme (`mic enhance`); çevrimdışı ölçümde DeepFilterNet'ten iyi (SNR 37,1 ↔ 30,7 dB) | Kulakla doğrulanmadı; kurulumu bu depoda belgelenmedi; ana mikrofon yapılmadı | Kayıt ve yayında, gecikmenin önemli olmadığı yerde daha temiz ses | Kurulum belgesi + kulak testi |
-| **L6** ses karakteri, perde, dönüştürme | 10 karakter (Nötr, Sıcak, Parlak, Radyo, Derin, Yakın, Telefon, Megafon, Kalın, İri), yoğunluk, kendi karakterlerin; perde (Rubber Band) | Formant ayrı ayarlanmıyor; YZ ses dönüştürme yapılmadı | Kendi ses renginin değiştirilmesi; YZ ile başka bir sese dönüşme | Açık kaynak ses dönüştürme modelleri (lisans ve gecikme ölçülerek) |
-| **L7** panel, kurulum, dağıtım | Panel, teşhis kaydı, profiller; mikrofon `mic device` ile seçiliyor; Apache-2.0; temiz yayın ağacı | Kurulum temiz bir makinede baştan sona yürünmedi; kurulum sihirbazı ertelendi; İngilizce arayüz yok; CI yok; DeepFilterNet zorunlu | Başkalarının kendi makinesinde kolayca kurup kullanması | Temiz makinede/VM'de kurulum yürüyüşü + sentetik sinyalle CI |
-
-**Aşılamayacak tavan.** Ses kalitesindeki en büyük fark donanımdan gelir: öz gürültü ~27 dB(A) ve 16 bit / ~17 kHz. Yazılım gürültüyü sonradan bastırır, iyi bir mikrofon baştan üretmez; bu fark yazılımla kapanmaz. Gerçekçi hedef: görüşme ve yayın için temiz ses; stüdyo vokali bu mikrofonla ulaşılamaz.
-
-**Açık kaynak tarafı.** Fısıltı kipi incelenen ticari ürünlerin hiçbirinde bulunamadı; zincir tamamen yerel ve PipeWire üzerinde. Mikrofon `mic device` ile seçildiği için yöntem başka USB mikrofonlara da uygulanabilir — ölçülen tek mikrofon olsa da.
-
-**Plan:** en büyük iki kazanç hâlâ bedava: mikrofonu yaklaştırmak ve test seti kaydı. Sonra kesintisiz canlı kullanım (L3), sonra kulak doğrulaması ve kalite hattının belgelenmesi.
-
-- [ ] **L1** mesafe ölçümü + frekans yanıtı
-- [ ] **L2** cihaz içi kazancın karakterizasyonu (salt okuma)
-- [ ] **L3** yük altında kesintisiz (bastırıcıyı ayrı işçiye taşı)
-- [ ] **L4** Normal/Gece modlarını ölçümle oturt; ağız sesi, eko iptali
-- [ ] **L5** kalite hattının kurulum belgesi + kulak testi
-- [ ] **L6** formant + YZ ses dönüştürme
-- [ ] **L7** temiz makinede kurulum yürüyüşü, İngilizce arayüz, CI
-
-## Ekran görüntüleri
-
-![Mikrofon konsolu: mod, ses karakteri ve ton ayarları](assets/screenshots/panel.png)
-
-![Teşhis kaydı: oda sesi ve kısa örnek kayıtlarla ince ayar](assets/screenshots/teshis-kaydi.png)
-
-## Gereksinimler
-
-- Linux, **PipeWire** (1.6.8 ile ölçüldü) ve WirePlumber; `pactl`, `pw-link`, `pw-cli`, `pw-record` komutları
-- Python 3 (panel ve zincir yalnız standart kitaplığı kullanır); ölçüm araçları ve testler için `requirements.txt` (numpy, scipy)
-- LSP Plugins LADSPA paketi (dağıtım deposundan, ör. Fedora'da `lsp-plugins-ladspa`)
-- DeepFilterNet LADSPA eklentisi v0.5.6: yukarı akıştan indirilir ve `~/.local/lib/mic-hifi/libdeep_filter_ladspa.so` olarak konur; özeti `plugins.lock.json` içinde kilitlidir
-- İsteğe bağlı: Rubber Band LADSPA eklentisi (perde için; Fedora'da `bash tools/install_rubberband.sh` kök yetkisi istemeden kurar)
-
-Bu depo yukarıdaki üçüncü taraf bileşenlerin hiçbirini içermez (bkz. `NOTICE`).
-
-## Kurulum
-
-```bash
-bin/mic device list                      # USB mikrofon adayları
-bin/mic device set <kaynak adı> --label "Mikrofonum"   # tek aday varsa: bin/mic device auto
-python3 tools/plugins.py check           # eklentilerin özeti kilitle aynı mı
-python3 tools/gen_conf.py                # PipeWire yapılandırmasını üret (~/.config/mic-hifi/mic-clean.conf)
-python3 tools/install_units.py --install # systemd kullanıcı birimlerini bu deponun konumuyla kur
-systemctl --user enable --now mic-clean mic-prio mic-console
-bin/mic console                          # panel adresi (ilk açılış için kişisel anahtarla)
-python3 tests/verify.py                  # canlı zincirde doğrulama
-```
-
-Panel: `http://127.0.0.1:8767/` (yalnız bu bilgisayardan erişilir). Uygulamalarda mikrofon olarak "<etiket> (temiz)" seçilir.
-Kaldırma: `systemctl --user disable --now mic-clean mic-prio mic-console mic-main mic-watch`.
-
-Sınamalar (kişisel kayıt gerektirmeyenler): `python3 tests/test_console_server.py`, `python3 tests/test_device.py`, `python3 tests/test_install.py`,
-`python3 tests/test_plugins.py`, `python3 tests/test_measure.py`, `python3 tests/test_conf_load.py`, `python3 tests/test_tone.py --fast`.
-
-## Sınırlar
-
-- Yalnız PipeWire; PulseAudio ya da JACK tek başına desteklenmez.
-- **Tek bir makinede (Fedora 44) ve tek bir mikrofonda ölçüldü.** Kurulum adımları temiz bir makinede baştan sona yürünmedi; başka dağıtımlarda eklenti yolları farklı olabilir (`LADSPA_PATH` desteklenir).
-- Gürültü bastırıcı sürekli yaklaşık üçte bir işlemci çekirdeği kullanır. Bellek yoğun ağır bir iş (ör. derleme) aynı anda koşarsa kısa ses kesintileri olabilir; panel son 10 dakikadaki sayıyı gösterir.
-- Ses ayarları ölçümle seçildi; **kulakla doğrulama kullanıcıya aittir** — karakterler ve perde kendi sesinde nasıl duyulur, sen karar verirsin.
-- Arayüz Türkçedir.
-- "Kalite" mikrofonu (`mic-main`, `mic-watch`) ve `bin/mic enhance` ayrı bir Python ortamı, bir NVIDIA ekran kartı ve kullanıcının kendi indireceği bir model (MossFormer2_SE_48K, Apache-2.0) ister; bu depoda model ya da ortam yoktur ve kurulumu burada belgelenmemiştir. Kullanmayacaksan o iki birimi etkinleştirme.
-- Tasarım notları ve ölçüm günlükleri bu depoda yayımlanmadı; koddaki `docs/...` göndermeleri o notlara aittir.
-
-## Lisans
-
-Apache-2.0 (`LICENSE`). Çalışma anında kullanılan üçüncü taraf bileşenler ve lisansları: `NOTICE`. Güvenlik bildirimi: `SECURITY.md`. Katkı: `CONTRIBUTING.md`.
-
-## English summary
-
-mic-hifi turns a USB microphone into a processed **virtual microphone** on Linux/PipeWire: high-pass, automatic levelling (lifts whispering, freezes in silence),
-compression, noise suppression (DeepFilterNet3), gate, tone presets, multiband dynamics, saturation and a limiter, controlled from a small local web panel
-(`http://127.0.0.1:8767/`). Audio never leaves the machine. Third-party plugins are installed by the user and are not part of this repository (see `NOTICE`).
-The panel and messages are in Turkish. It has been measured on one machine and one microphone only; the installation steps above have not yet been walked
-through on a clean system. Licensed under Apache-2.0.
-
-### Roadmap — what doing it unlocks
+## Roadmap — what doing it unlocks
 
 The cleaning chain and the panel were built by measurement and run live. The microphone itself (capsule, placement, in-device processing) and listener-side verification have not been broken down yet. Gains in the table are **expectations, not measured results**.
 
@@ -121,3 +38,95 @@ The cleaning chain and the panel were built by measurement and run live. The mic
 - [ ] **L5** quality-path setup docs + listening test
 - [ ] **L6** formant + AI voice conversion
 - [ ] **L7** clean-machine install walk, English UI, CI
+
+## Who can do what — manufacturer ↔ user
+
+Part of what it takes to get the best sound from a microphone exists **only at the manufacturer** (capsule measurements, processing inside the device); another part the **user can measure themselves**. As long as the manufacturer does not publish, software corrects by guesswork; every user measurement closes the gap.
+
+### Data the manufacturer should publish
+
+| data | why it matters | standard / how |
+|---|---|---|
+| Frequency response (on-axis, at a stated distance) and polar pattern | The only solid basis for tone correction; with no reference measurement, tone is not corrected today | Anechoic measurement, as CSV (e.g. IEC 60268-4 methods) |
+| Self-noise (dB(A)), sensitivity (dBFS at 94 dB SPL), maximum SPL | The ceiling of how clean quiet speech such as whispering can get | Datasheet values |
+| Real ADC resolution and sample rate (the converter itself, not just what the USB descriptor says) | Tells whether the 16 bit / ~17 kHz limit comes from the hardware or from configuration | Datasheet + USB Audio Class descriptor |
+| In-device processing: automatic gain, limiter, noise gate, high-pass — and whether each can be switched off | The device's own automatic gain "fights" the software chain; on this device gain is adjusted internally | Processing list + USB Audio Class controls |
+| Control channel (HID) protocol documentation | Gain, mute, LEDs can be managed safely from any platform; writing to an undocumented channel is risky, so this project does not | Open protocol document |
+| Firmware version and update path | You know which version a measurement belongs to | Release notes |
+
+### Tests users can run themselves (with this repo)
+
+| test | what it tells you | how | data you can share |
+|---|---|---|---|
+| Status check | Which microphone is processed, is the chain running, is the default input right | `bin/mic status` · `python3 tests/verify.py` | Acceptance output |
+| Room tone | The room's noise floor — whether Whisper/Night mode has enough headroom | Panel → diagnostic recording → "room tone" | Measured level (dBFS / LUFS) |
+| Distance test | The gain from moving the mic closer (calculated ~+15 dB, not measured) | Record the same sentence at 15 cm and 5 cm, then measure | Difference between the two |
+| Test-set recording | Whisper / quiet / normal voice × keyboard / breath; settling mode values by measurement | The panel's diagnostic recording steps | Measurement results (not the audio itself) |
+| Delivery measurement | Loudness (LUFS) and true peak — does it meet the call / streaming target | Panel → "measure recording" | LUFS / dBTP values |
+| Before/after listening | Record raw and clean at the same time, then play them back in turn | `bin/mic ab 8` | Preference note |
+| Verification by ear | How characters and pitch sound on your own voice | Panel → "compare by ear" | Feedback |
+
+**Privacy:** recordings never leave your computer and never enter this repository; what you share are measurement results, not the audio.
+
+### Recommendations to manufacturers — biggest quality gain for the smallest cost
+
+Cost and gain are estimates; not measured on this microphone.
+
+| recommendation | added cost | expected gain |
+|---|---|---|
+| Publish factory measurements (frequency response, self-noise, sensitivity) | **Zero** — already measured in production | Software corrects tone accurately; users know the mic's real limits |
+| Expose 24 bit / 48 kHz over USB where the ADC supports it | Firmware only | More headroom for quiet speech, wider bandwidth |
+| Make in-device automatic gain switchable (via a USB Audio Class control) | Firmware only | The software chain behaves predictably; gain "pumping" stops |
+| Enable a default high-pass (~80 Hz) in the device | Firmware only | On this mic almost all noise is below 80 Hz: hum and desk rumble are cut at the source |
+| Ship a foam windscreen / pop filter and a simple shock mount | A few cents to a few euros | Fewer plosive pops and less desk-borne vibration |
+| Document the control channel (HID) | Writing a document | Settings managed safely from any platform |
+| Low-noise supply for the preamp (a clean regulator) | Very low parts cost | Lower self-noise — less noise for software to suppress afterwards |
+
+## Screenshots
+
+![Microphone console: mode, voice character and tone settings](assets/screenshots/panel.png)
+
+![Diagnostic recording: fine-tuning with room tone and short sample recordings](assets/screenshots/teshis-kaydi.png)
+
+## Requirements
+
+- Linux, **PipeWire** (measured with 1.6.8) and WirePlumber; the `pactl`, `pw-link`, `pw-cli`, `pw-record` commands
+- Python 3 (the panel and the chain use only the standard library); `requirements.txt` (numpy, scipy) for the measurement tools and tests
+- LSP Plugins LADSPA package (from your distribution, e.g. `lsp-plugins-ladspa` on Fedora)
+- DeepFilterNet LADSPA plugin v0.5.6: downloaded from upstream and placed at `~/.local/lib/mic-hifi/libdeep_filter_ladspa.so`; its digest is pinned in `plugins.lock.json`
+- Optional: Rubber Band LADSPA plugin (for pitch; on Fedora `bash tools/install_rubberband.sh` installs it without root)
+
+This repository contains none of the third-party components above (see `NOTICE`).
+
+## Installation
+
+```bash
+bin/mic device list                      # USB microphone candidates
+bin/mic device set <source name> --label "My mic"   # with a single candidate: bin/mic device auto
+python3 tools/plugins.py check           # do the plugin digests match the lock?
+python3 tools/gen_conf.py                # generate the PipeWire configuration (~/.config/mic-hifi/mic-clean.conf)
+python3 tools/install_units.py --install # install the systemd user units pointing at this checkout
+systemctl --user enable --now mic-clean mic-prio mic-console
+bin/mic console                          # panel address (with a personal key for the first visit)
+python3 tests/verify.py                  # verification on the live chain
+```
+
+Panel: `http://127.0.0.1:8767/` (reachable only from this computer). In your apps, pick "<label> (temiz)" as the microphone ("temiz" = clean).
+Uninstall: `systemctl --user disable --now mic-clean mic-prio mic-console mic-main mic-watch`.
+
+Tests that need no personal recording: `python3 tests/test_console_server.py`, `python3 tests/test_device.py`, `python3 tests/test_install.py`,
+`python3 tests/test_plugins.py`, `python3 tests/test_measure.py`, `python3 tests/test_conf_load.py`, `python3 tests/test_tone.py --fast`.
+
+## Limitations
+
+- PipeWire only; PulseAudio or JACK on their own are not supported.
+- **Measured on a single machine (Fedora 44) and a single microphone.** The installation steps have not been walked end to end on a clean machine; plugin paths may differ on other distributions (`LADSPA_PATH` is honoured).
+- The noise suppressor continuously uses about a third of a CPU core. If a heavy memory-bound job (e.g. a compile) runs at the same time, short dropouts can occur; the panel shows the count for the last 10 minutes.
+- Settings were chosen by measurement; **verifying them by ear is up to you** — you decide how the characters and pitch sound on your own voice.
+- The user interface is in Turkish.
+- The "quality" microphone (`mic-main`, `mic-watch`) and `bin/mic enhance` need a separate Python environment, an NVIDIA graphics card and a model you download yourself (MossFormer2_SE_48K, Apache-2.0); this repository contains neither the model nor the environment, and their setup is not documented here. If you will not use them, do not enable those two units.
+- Design notes and measurement logs are not published in this repository; `docs/...` references in the code point to those notes.
+
+## License
+
+Apache-2.0 (`LICENSE`). Third-party components used at runtime and their licences: `NOTICE`. Security reports: `SECURITY.md`. Contributing: `CONTRIBUTING.md`.
