@@ -10,6 +10,7 @@ CONTRIBUTING.md
 plugins.lock.json
 requirements.txt
 release.manifest
+assets
 bin
 conf
 console
