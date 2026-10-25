@@ -23,7 +23,7 @@ Temizleme zinciri ve panel ölçümle kuruldu ve canlıda çalışıyor. Mikrofo
 | **L4** temizleme zinciri | **Güçlü:** fısıltı SNR 8,6 → 27,1 dB; seviyeleyici, kompresör, DeepFilterNet3, kapı, bölünmüş bantlı ıslık kısma, dinamik EQ; çıkış hedefi −23 / −16 LUFS, gerçek tepe ≤ −1 dBTP | Yalnız Fısıltı modu kabul testinden geçti; Normal ve Gece değerleri ölçümle oturtulmadı. Ağız sesi / çıtırtı canlıda yok, oda yankısı giderme yok, eko iptali denendi ama bağlanmadı. Çoğu ayar kulakla doğrulanmadı | Stüdyoya yakın teslim; hoparlörle görüşmede eko iptali | Kendi sesinle test seti kaydı (~20 dk) + panelin teşhis kaydı |
 | **L5** kalite hattı (ekran kartı) | İkinci, ~1 sn gecikmeli "kalite" mikrofonu canlıda (MossFormer2); kayıtlı dosyayı iyileştirme (`mic enhance`); çevrimdışı ölçümde DeepFilterNet'ten iyi (SNR 37,1 ↔ 30,7 dB) | Kulakla doğrulanmadı; kurulumu bu depoda belgelenmedi; ana mikrofon yapılmadı | Kayıt ve yayında, gecikmenin önemli olmadığı yerde daha temiz ses | Kurulum belgesi + kulak testi |
 | **L6** ses karakteri, perde, dönüştürme | 10 karakter (Nötr, Sıcak, Parlak, Radyo, Derin, Yakın, Telefon, Megafon, Kalın, İri), yoğunluk, kendi karakterlerin; perde (Rubber Band) | Formant ayrı ayarlanmıyor; YZ ses dönüştürme yapılmadı | Kendi ses renginin değiştirilmesi; YZ ile başka bir sese dönüşme | Açık kaynak ses dönüştürme modelleri (lisans ve gecikme ölçülerek) |
-| **L7** panel, kurulum, dağıtım | Panel, teşhis kaydı, profiller; mikrofon `mic device` ile seçiliyor; Apache-2.0; temiz yayın ağacı | Kurulum temiz bir makinede baştan sona yürünmedi; kurulum sihirbazı ertelendi; İngilizce arayüz yok; CI yok; DeepFilterNet zorunlu | Başkalarının kendi makinesinde kolayca kurup kullanması | Temiz makinede/VM'de kurulum yürüyüşü + sentetik sinyalle CI |
+| **L7** panel, kurulum, dağıtım | İngilizce ve Türkçe panel, teşhis kaydı, profiller; mikrofon `mic device` ile seçiliyor; Apache-2.0; temiz yayın ağacı | Kurulum temiz bir makinede baştan sona yürünmedi; kurulum sihirbazı ertelendi; CI yok; DeepFilterNet zorunlu | Başkalarının kendi makinesinde kolayca kurup kullanması | Temiz makinede/VM'de kurulum yürüyüşü + sentetik sinyalle CI |
 
 **Aşılamayacak tavan.** Ses kalitesindeki en büyük fark donanımdan gelir: eşdeğer gürültü 27 dB (kılavuz) ve 16 bit / ~17 kHz. Yazılım gürültüyü sonradan bastırır, iyi bir mikrofon baştan üretmez; bu fark yazılımla kapanmaz. Gerçekçi hedef: görüşme ve yayın için temiz ses; stüdyo vokali bu mikrofonla ulaşılamaz.
 
@@ -37,7 +37,7 @@ Temizleme zinciri ve panel ölçümle kuruldu ve canlıda çalışıyor. Mikrofo
 - [ ] **L4** Normal/Gece modlarını ölçümle oturt; ağız sesi, eko iptali
 - [ ] **L5** kalite hattının kurulum belgesi + kulak testi
 - [ ] **L6** formant + YZ ses dönüştürme
-- [ ] **L7** temiz makinede kurulum yürüyüşü, İngilizce arayüz, CI
+- [ ] **L7** temiz makinede kurulum yürüyüşü, CI
 
 ## Kim ne yapabilir — üretici ↔ kullanıcı
 
@@ -84,9 +84,9 @@ Maliyet ve kazanç tahminidir; bu mikrofonda ölçülmedi.
 
 ## Ekran görüntüleri
 
-![Mikrofon konsolu: mod, ses karakteri ve ton ayarları](assets/screenshots/panel.png)
+![Mikrofon konsolu: mod, ses karakteri ve ton ayarları](assets/screenshots/panel-tr.png)
 
-![Teşhis kaydı: oda sesi ve kısa örnek kayıtlarla ince ayar](assets/screenshots/teshis-kaydi.png)
+![Teşhis kaydı: oda sesi ve kısa örnek kayıtlarla ince ayar](assets/screenshots/teshis-kaydi-tr.png)
 
 ## Test edilen donanım
 
@@ -137,7 +137,7 @@ Sınamalar (kişisel kayıt gerektirmeyenler): `python3 tests/test_console_serve
 - **Tek bir makinede (Fedora 44) ve tek bir mikrofonda ölçüldü.** Kurulum adımları temiz bir makinede baştan sona yürünmedi; başka dağıtımlarda eklenti yolları farklı olabilir (`LADSPA_PATH` desteklenir).
 - Gürültü bastırıcı sürekli yaklaşık üçte bir işlemci çekirdeği kullanır. Bellek yoğun ağır bir iş (ör. derleme) aynı anda koşarsa kısa ses kesintileri olabilir; panel son 10 dakikadaki sayıyı gösterir.
 - Ses ayarları ölçümle seçildi; **kulakla doğrulama kullanıcıya aittir** — karakterler ve perde kendi sesinde nasıl duyulur, sen karar verirsin.
-- Arayüz Türkçedir.
+- Panel İngilizce ve Türkçedir: tarayıcının diline göre açılır; başlıktaki düğme (ya da `?lang=tr` / `?lang=en`) dili değiştirir ve hatırlar. Sistemin uygulamalara gösterdiği sanal mikrofon adları (ör. "Mikrofon (temiz)") ve komut satırı çıktısı Türkçedir.
 - "Kalite" mikrofonu (`mic-main`, `mic-watch`) ve `bin/mic enhance` ayrı bir Python ortamı, bir NVIDIA ekran kartı ve kullanıcının kendi indireceği bir model (MossFormer2_SE_48K, Apache-2.0) ister; bu depoda model ya da ortam yoktur ve kurulumu burada belgelenmemiştir. Kullanmayacaksan o iki birimi etkinleştirme.
 - Tasarım notları ve ölçüm günlükleri bu depoda yayımlanmadı; koddaki `docs/...` göndermeleri o notlara aittir.
 

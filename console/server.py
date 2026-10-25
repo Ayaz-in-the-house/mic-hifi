@@ -35,6 +35,7 @@ ENV = dict(os.environ, XDG_RUNTIME_DIR=RUN)
 DRY = os.environ.get("MIC_DRY") == "1"
 PROFILE_DIR = os.path.join(os.path.dirname(chain.STATE_FILE), "profiles")
 PAGE = os.path.join(ROOT, "console", "index.html")
+I18N = {lang: os.path.join(ROOT, "console", "i18n", lang + ".json") for lang in ("en", "tr")}   # arayüz sözlükleri (D50): sayfaya gömülür, ayrı uç yok
 MIC = os.path.join(ROOT, "bin", "mic")
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 MAX_BODY = 16 * 1024
@@ -42,6 +43,20 @@ MAX_METER_CLIENTS = 4
 MAX_PROFILES = 50
 TOKEN_FILE = os.path.join(os.path.dirname(chain.STATE_FILE), "token")
 CONFIG_FILE = os.path.join(os.path.dirname(chain.STATE_FILE), "config.json")
+
+
+class Msg(str):
+    """Görünen ileti (D50): değeri Türkçe metnin KENDİSİ (geriye uyum: testler, günlük, eski sekme), yanında istemcinin dil sözlüğündeki
+    karşılığı için kod ve değişkenler. Sözlükte `srv.<kod>` şablonu `{değişken}` yer tutucularıyla yazılır (console/i18n/*.json)."""
+    def __new__(cls, code, text, **vars):
+        m = super().__new__(cls, text)
+        m.code, m.vars = code, {k: v if isinstance(v, (int, float)) else str(v) for k, v in vars.items()}
+        return m
+
+
+def msg_fields(m, prefix="message"):
+    """Yanıta eklenen alanlar: <önek>, <önek>_code, <önek>_vars. Düz dize (koda bağlanmamış) → kod boş."""
+    return {prefix: str(m or ""), prefix + "_code": getattr(m, "code", ""), prefix + "_vars": getattr(m, "vars", {})}
 
 
 def require_key():
@@ -200,7 +215,7 @@ def push_live(state):
         parts.append(f'"{k}" {"true" if v is True else "false" if v is False else format(v, ".6g")}')
     rc, out = run("pw-cli", "set-param", chain.CONTROL_NODE, "Props", "{ params = [ " + " ".join(parts) + " ] }")
     if rc != 0 or "Error" in out:
-        return False, out[-200:] or "pw-cli başarısız"
+        return False, out[-200:] or "pw-cli"
     return True, ""
 
 
@@ -208,7 +223,8 @@ def restart_chain():
     if DRY:
         return True, ""
     rc, out = run("systemctl", "--user", "restart", "mic-clean.service")
-    return (True, "Zincir yeni yapıyla yeniden başlatıldı; mikrofon birkaç saniye içinde geri gelir.") if rc == 0 else (False, "Zincir yeniden başlatılamadı: " + out[-160:])
+    return (True, Msg("chain_restarted", "Zincir yeni yapıyla yeniden başlatıldı; mikrofon birkaç saniye içinde geri gelir.")) if rc == 0 \
+        else (False, Msg("chain_restart_failed", "Zincir yeniden başlatılamadı: " + out[-160:], detail=out[-160:]))
 
 
 def service_active():
@@ -252,12 +268,28 @@ def quality_line():
 
 
 def ui_version():
-    """Panel sayfasının sürümü (dosya içeriğinin özeti). Sayfaya gömülür ve durum yanıtında döner: açık sekme eskiyse fark eder ve "yenile" der."""
+    """Panel sayfasının sürümü (sayfa + dil sözlükleri içeriğinin özeti). Sayfaya gömülür ve durum yanıtında döner: açık sekme eskiyse fark eder ve "yenile" der."""
     import hashlib
+    h = hashlib.sha256()
     try:
-        return hashlib.sha256(open(PAGE, "rb").read()).hexdigest()[:12]
+        for f in (PAGE, *I18N.values()):
+            h.update(open(f, "rb").read())
+        return h.hexdigest()[:12]
     except OSError:
         return ""
+
+
+def i18n_blob():
+    """Sayfaya gömülecek sözlükler: {"en": {...}, "tr": {...}} — betik içinde güvenli JSON ("</" kaçışlı; sözlük depodandır, kullanıcı girdisi değildir).
+    Okunamayan sözlük boş sayılır; sayfa o zaman HTML'deki Türkçe metinle açılır."""
+    out = {}
+    for lang, f in I18N.items():
+        try:
+            d = json.load(open(f, encoding="utf-8"))
+            out[lang] = {str(k): str(v) for k, v in d.items()} if isinstance(d, dict) else {}
+        except (OSError, ValueError):
+            out[lang] = {}
+    return json.dumps(out, ensure_ascii=False).replace("</", "<\\/").replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
 
 
 def caps():
@@ -374,7 +406,7 @@ class Audition:
 
     def record(self, store, seconds):
         if not self._begin("kayit"):
-            return "Başka bir kayıt ya da çalma sürüyor."
+            return Msg("busy", "Başka bir kayıt ya da çalma sürüyor.")
         threading.Thread(target=self._record, args=(store, seconds), daemon=True).start()
         return ""
 
@@ -440,9 +472,9 @@ class Audition:
     def play(self, store, ident):
         state = self.variant(store, ident)
         if not self.has_take():
-            return "Önce bir kayıt al."
+            return Msg("no_take", "Önce bir kayıt al.")
         if not self._begin("caliyor", ident):
-            return "Başka bir kayıt ya da çalma sürüyor."
+            return Msg("busy", "Başka bir kayıt ya da çalma sürüyor.")
         threading.Thread(target=self._play, args=(state,), daemon=True).start()
         return ""
 
@@ -484,11 +516,11 @@ class Audition:
         # Seçili çıkış hedefi varsa ses yüksekliği o hedefe göre (−3 … +2 LU: kısa kayıtta duraklar ölçüyü aşağı çeker), yoksa tüm aralık.
         want = next((t["lufs"] for t in chain.LOUD_TARGETS.values() if t["loud_db"] == state.get("loud_db")), None)
         targets = {**self.TARGETS, "integrated": [want - 3.0, want + 2.0] if want is not None else self.TARGETS["integrated"], "loudness_goal": want}
-        base = {"ok": False, "id": ident, "targets": targets, "measures": {}}
+        base = {"ok": False, "id": ident, "targets": targets, "measures": {}, **msg_fields("")}
         if not self.has_take():
-            return {**base, "message": "Önce bir kayıt al."}
+            return {**base, **msg_fields(Msg("no_take", "Önce bir kayıt al."))}
         if self.phase != "idle":
-            return {**base, "message": "Kayıt ya da çalma sürüyor."}
+            return {**base, **msg_fields(Msg("audition_busy", "Kayıt ya da çalma sürüyor."))}
         if DRY:
             return {**base, "ok": True, "message": "", "measures": {"seconds": 8.0, "integrated": -24.5, "short_max": -22.1, "lra": 4.2, "sample_peak": -1.0,
                                                                      "true_peak": -0.6, "floor": -58.0, "clicks_per_min": 7.5, "clicks": 1, "clicks_in_per_min": 7.5}}
@@ -498,10 +530,11 @@ class Audition:
             r = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "audition.py"), "measure", self.take, st], env=ENV, capture_output=True, text=True, timeout=40)
             os.remove(st)
             if r.returncode:
-                return {**base, "message": "Ölçülemedi: " + (r.stderr.strip().splitlines() or ["bilinmeyen hata"])[-1][:160]}
+                err = (r.stderr.strip().splitlines() or ["?"])[-1][:160]
+                return {**base, **msg_fields(Msg("measure_failed", "Ölçülemedi: " + (err if err != "?" else "bilinmeyen hata"), detail=err))}
             return {**base, "ok": True, "message": "", "measures": json.loads(r.stdout)}
         except (OSError, ValueError, subprocess.TimeoutExpired) as e:
-            return {**base, "message": f"Ölçülemedi: {e}"}
+            return {**base, **msg_fields(Msg("measure_failed", f"Ölçülemedi: {e}", detail=e))}
 
     def stop(self):
         self.stop_flag = True
@@ -542,13 +575,13 @@ class Diag:
             with wave.open(self.path(step)) as w:
                 a = array.array("h", w.readframes(w.getnframes()))
         except (OSError, EOFError, wave.Error):
-            return None, "Kayıt okunamadı; yeniden dene."
+            return None, Msg("diag_unreadable", "Kayıt okunamadı; yeniden dene.")
         if not a or not any(a):
-            return -120.0, "Mikrofondan hiç ses gelmedi (cihaz kendi tuşundan sessizde olabilir); yeniden dene."
+            return -120.0, Msg("diag_silent", "Mikrofondan hiç ses gelmedi (cihaz kendi tuşundan sessizde olabilir); yeniden dene.")
         rms = 20 * math.log10(max(math.sqrt(sum(v * v for v in a) / len(a)), 1e-3) / 32768)
         peak = max(max(a), -min(a))
         if peak >= 32760:
-            return round(rms, 1), "Ses tavana vurdu (kırpılma); biraz uzaklaşıp yeniden dene."
+            return round(rms, 1), Msg("diag_clipped", "Ses tavana vurdu (kırpılma); biraz uzaklaşıp yeniden dene.")
         if step == "tik":
             # Bilerek yapılan ağız sesleri kısa darbelerdir: konuşma süresi aranmaz, AYRI olay sayılır (oda + 12 dB üstü 50 ms çerçeve kümeleri, arada ≥ 200 ms).
             room = self._room(); n = self.RATE // 20
@@ -561,13 +594,14 @@ class Diag:
                     last = i
             self._events[step] = events
             if events < self.MIN_EVENTS:
-                return round(rms, 1), f"{events} ses olayı duyuldu; en az {self.MIN_EVENTS} gerekiyor. Dudağını ya da dilini biraz daha belirgin şaklatıp yeniden dene."
+                return round(rms, 1), Msg("diag_few_events", f"{events} ses olayı duyuldu; en az {self.MIN_EVENTS} gerekiyor. Dudağını ya da dilini biraz daha belirgin şaklatıp yeniden dene.",
+                                           events=events, min=self.MIN_EVENTS)
             return round(rms, 1), ""
         if step != "sessiz":
             # Konuşma adımı oda sesinden ayırt edilebilmeli: oda kaydı varsa onun 3 dB üstü, yoksa −50 dBFS (ham oda gürültüsü ≈ −52 dBFS ölçüldü).
             room = self._room()
             if rms < (room + 3.0 if room is not None else -50.0):
-                return round(rms, 1), "Konuşma duyulmadı (kayıt oda sesi kadar alçak); yönergeyi uygulayıp yeniden dene."
+                return round(rms, 1), Msg("diag_no_speech", "Konuşma duyulmadı (kayıt oda sesi kadar alçak); yönergeyi uygulayıp yeniden dene.")
             # Ortalama seviye konuşmayı kanıtlamaz: kısa bir darbe (masaya vurma, mikrofona dokunma) ortalamayı tek başına yükseltir (ölçüldü: 8 sn'nin
             # %8–10'u sesliyken "yapıldı" göründü). Ölçü: 50 ms'lik çerçevelerden oda sesinin 6 dB üstünde kalanların toplam süresi.
             thr, n, sec = (room if room is not None else -53.0) + self.SPEECH_ABOVE_ROOM_DB, self.RATE // 20, self._seconds(step)
@@ -576,7 +610,8 @@ class Diag:
             speech = sum(on) * 0.05
             self._speech[step] = round(speech, 1)
             if speech < sec * (self.MIN_SPEECH.get(step, 0.25)):
-                return round(rms, 1), f"Konuşma çok kısa sürdü ({speech:.1f} sn);".replace(".", ",") + f" duyulan ses bir darbe ya da tıkırtı olabilir. Yönergeyi baştan sona uygulayıp yeniden dene."
+                return round(rms, 1), Msg("diag_too_short", f"Konuşma çok kısa sürdü ({speech:.1f} sn);".replace(".", ",") + " duyulan ses bir darbe ya da tıkırtı olabilir. Yönergeyi baştan sona uygulayıp yeniden dene.",
+                                           sec=round(speech, 1))
             if step == "aaa":
                 # Uzun ses tek parça olmalı: toplamı yeten ama kesik kesik ses (odadaki konuşma) rezonans ölçümüne yaramaz (S37). 100 ms'lik boşluk hoş görülür.
                 run = best = gap = 0
@@ -585,7 +620,8 @@ class Diag:
                     run = run + 1 if f or gap <= 2 else 0
                     best = max(best, run)
                 if best * 0.05 < self.MIN_SUSTAIN_S:
-                    return round(rms, 1), f"Ses kesik kesik (en uzun kesintisiz bölüm {best * 0.05:.1f} sn);".replace(".", ",") + " tek nefeste, kesintisiz bir “aaa” gerekiyor. Yeniden dene."
+                    return round(rms, 1), Msg("diag_choppy", f"Ses kesik kesik (en uzun kesintisiz bölüm {best * 0.05:.1f} sn);".replace(".", ",") + " tek nefeste, kesintisiz bir “aaa” gerekiyor. Yeniden dene.",
+                                               sec=round(best * 0.05, 1))
         return round(rms, 1), ""
 
     def _seconds(self, step):
@@ -606,7 +642,7 @@ class Diag:
             done = os.path.exists(self.path(sid)) and not (self.phase == "kayit" and self.step == sid)
             self._speech.pop(sid, None); self._events.pop(sid, None)
             lv, warn = self.measure(sid) if done else (None, "")
-            steps.append({"id": sid, "title": title, "prompt": prompt, "seconds": sec, "done": done, "level_db": lv, "warn": warn,
+            steps.append({"id": sid, "title": title, "prompt": prompt, "seconds": sec, "done": done, "level_db": lv, **msg_fields(warn, "warn"),
                           "speech_s": self._speech.get(sid), "events": self._events.get(sid)})
         return {"phase": self.phase, "step": self.step, "steps": steps, "room": self.room_report()}
 
@@ -639,7 +675,7 @@ class Diag:
             raise ValueError("step")
         with LOCK:
             if self.phase != "idle" or AUDITION.phase != "idle" or TRIAL.phase != "idle":
-                return "Başka bir kayıt ya da çalma sürüyor."
+                return Msg("busy", "Başka bir kayıt ya da çalma sürüyor.")
             self.phase, self.step = "kayit", step
         threading.Thread(target=self._record, args=(step, spec[3]), daemon=True).start()
         return ""
@@ -680,7 +716,7 @@ class Diag:
 
     def delete(self):
         if self.phase != "idle":
-            return "Kayıt sürerken silinemez."
+            return Msg("diag_busy_delete", "Kayıt sürerken silinemez.")
         left = 0
         for sid, *_ in self.STEPS:
             try:
@@ -689,7 +725,7 @@ class Diag:
                 pass
             except OSError:
                 left += 1
-        return "Teşhis kayıtları silindi." if not left else f"{left} kayıt silinemedi."
+        return Msg("diag_deleted", "Teşhis kayıtları silindi.") if not left else Msg("diag_delete_failed", f"{left} kayıt silinemedi.", n=left)
 
 
 DIAG = Diag()
@@ -701,8 +737,8 @@ def snapshot(store, msg=""):
             "presets": sorted(chain.PRESETS), "profiles": profiles(), "character": store.char, "characters": list(chain.CHARACTERS), "amount": store.amt, "amounts": list(chain.AMOUNTS),
             "loudness": next((k for k, t in chain.LOUD_TARGETS.items() if t["loud_db"] == store.state.get("loud_db")), "ozel"), "loud_targets": chain.LOUD_TARGETS,
             "user_characters": list(user_characters()), "service": service_active(), "restarts": store.restarts,
-            "monitor": "off" if DRY else monitor_mode(), "hpf_hz": chain.HPF_HZ, "message": msg,
-            "mic": mic_present(), "quality": quality_line(), "diag": DIAG.info(), "label": chain.DEVICE_LABEL, "caps": caps(), "ui": ui_version(), "dropouts": dropouts(), "trial": TRIAL.phase, "audition": AUDITION.info(), "key_required": require_key()}
+            "monitor": "off" if DRY else monitor_mode(), "hpf_hz": chain.HPF_HZ, **msg_fields(msg),
+            "mic": mic_present(), "quality": quality_line(), "diag": DIAG.info(), "label": chain.DEVICE_LABEL, "clean_name": chain.DEVICE_LABEL + " (temiz)", "caps": caps(), "ui": ui_version(), "dropouts": dropouts(), "trial": TRIAL.phase, "audition": AUDITION.info(), "key_required": require_key()}
 
 
 # ── seviye ölçer (yalnız istemci varken) ─────────────────────────────────────
@@ -786,32 +822,36 @@ def make_handler(store, meter, port, token):
             self.end_headers()
             self.wfile.write(body)
 
+        def _err(self, status, m):
+            """Hata yanıtı: `error` Türkçe metin (geriye uyum) + `code`/`vars` (istemci sözlüğünde `srv.<kod>`, D50)."""
+            self._send(status, {"error": str(m), "code": m.code, "vars": m.vars})
+
         def _authed(self):
             return hmac.compare_digest((self.headers.get("X-Mic-Key") or "").encode(), token.encode())
 
         def _guard(self, post=False, auth=True):
             if self.headers.get("Host") not in hosts:
-                self._send(403, {"error": "host"}); return False
+                self._err(403, Msg("err_host", "host")); return False
             o = self.headers.get("Origin")
             if o and o not in origins:
-                self._send(403, {"error": "origin"}); return False
+                self._err(403, Msg("err_origin", "origin")); return False
             if not auth:
                 return True
             if self.headers.get("Sec-Fetch-Site") not in (None, "same-origin", "none"):
-                self._send(403, {"error": "site"}); return False   # başka siteden gelen GET (img/iframe) dahil
+                self._err(403, Msg("err_site", "site")); return False   # başka siteden gelen GET (img/iframe) dahil
             if self.headers.get("X-Mic-Console") != "1":   # GET dahil: yalnız panelin kendi fetch'i bu başlığı koyabilir
-                self._send(403, {"error": "başlık"}); return False
+                self._err(403, Msg("err_header", "başlık")); return False
             if need_key and not self._authed():
-                self._send(401, {"error": "anahtar yok: terminalde `mic console` çalıştırıp verdiği adresi aç"}); return False
+                self._err(401, Msg("err_key", "anahtar yok: terminalde `mic console` çalıştırıp verdiği adresi aç")); return False
             if post and (self.headers.get("X-Mic-Console") != "1" or "application/json" not in (self.headers.get("Content-Type") or "")):
-                self._send(403, {"error": "csrf"}); return False
+                self._err(403, Msg("err_csrf", "csrf")); return False
             return True
 
         def do_GET(self):
-            if self.path == "/":   # statik sayfa: sır içermez, anahtarsız sunulur (anahtar adres parçasından okunur)
+            if self.path.split("?")[0] == "/":   # statik sayfa: sır içermez, anahtarsız sunulur (anahtar adres parçasından okunur); sorgu (?lang=) yalnız sayfanın betiği içindir
                 if not self._guard(auth=False):
                     return
-                self._send(200, open(PAGE, "rb").read().replace(b"__UI_VERSION__", ui_version().encode()), "text/html; charset=utf-8", [
+                self._send(200, open(PAGE, "rb").read().replace(b"__UI_VERSION__", ui_version().encode()).replace(b"/*__I18N__*/null", i18n_blob().encode()), "text/html; charset=utf-8", [
                     ("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; "
                                                 "connect-src 'self'; img-src data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")])
                 return
@@ -825,10 +865,10 @@ def make_handler(store, meter, port, token):
                 try:
                     self._send(200, AUDITION.delivery(store, ident))
                 except KeyError:
-                    self._send(400, {"error": "bilinmeyen karakter"})
+                    self._err(400, Msg("err_unknown_character", "bilinmeyen karakter"))
             elif self.path == "/api/meter":
                 if not meter.acquire():
-                    self._send(503, {"error": "ölçer meşgul"}); return
+                    self._err(503, Msg("err_meter_busy", "ölçer meşgul")); return
                 try:   # acquire'dan sonra ne olursa olsun release: başlık yazarken kopan istemci mikrofonu açık bırakmasın
                     self.connection.settimeout(5)   # okumayan/donmuş istemci yazmayı sonsuza dek bloke edemesin
                     self.send_response(200)
@@ -846,7 +886,7 @@ def make_handler(store, meter, port, token):
                     meter.release()
                 self.close_connection = True
             else:
-                self._send(404, {"error": "yok"})
+                self._err(404, Msg("err_not_found", "yok"))
 
         def do_POST(self):
             if not self._guard(post=True):
@@ -856,29 +896,35 @@ def make_handler(store, meter, port, token):
             except ValueError:
                 n = -1
             if n < 0:
-                self._send(400, {"error": "uzunluk"}); return
+                self._err(400, Msg("err_length", "uzunluk")); return
             if n > MAX_BODY:
-                self._send(413, {"error": "büyük"}); return
+                self._err(413, Msg("err_too_large", "büyük")); return
             try:
                 body = json.loads(self.rfile.read(n) or b"{}")
                 assert isinstance(body, dict)
             except (ValueError, AssertionError):
-                self._send(400, {"error": "json"}); return
+                self._err(400, Msg("err_json", "json")); return
             try:
                 msg = self._route(body)
             except (KeyError, ValueError, TypeError, OSError) as e:   # bozuk/okunamayan profil dosyası dahil
-                self._send(400, {"error": f"geçersiz: {e}"}); return
+                inner = e.args[0] if e.args and isinstance(e.args[0], Msg) else None   # açıklamalı ret (ad kuralı, sınır) kendi koduyla
+                if inner is not None:
+                    self._err(400, Msg(inner.code, f"geçersiz: {e}", **inner.vars))
+                else:
+                    self._err(400, Msg("err_invalid", f"geçersiz: {e}", detail=e))
+                return
             if msg is None:
-                self._send(404, {"error": "yok"}); return
+                self._err(404, Msg("err_not_found", "yok")); return
             self._send(200, snapshot(store, msg))
 
         def _route(self, b):
-            with_state = lambda ok, m: "" if ok else f"Canlı zincire yazılamadı: {m}"
+            with_state = lambda ok, m: "" if ok else Msg("live_restart_failed" if getattr(m, "code", "") == "chain_restart_failed" else "live_write_failed",
+                                                 f"Canlı zincire yazılamadı: {m}", detail=getattr(m, "vars", {}).get("detail", m))
             if self.path == "/api/state":
                 if not isinstance(b.get("patch"), dict):
                     raise ValueError("patch")
                 if b["patch"].get("pitch_on") is True and not caps()["pitch"]:
-                    return "Perde eklentisi kurulu değil; perde açılamadı. Kurulum: bash tools/install_rubberband.sh"
+                    return Msg("pitch_missing", "Perde eklentisi kurulu değil; perde açılamadı. Kurulum: bash tools/install_rubberband.sh")
                 return with_state(*store.apply(b["patch"]))
             if self.path == "/api/preset":
                 pid = str(b.get("id", ""))
@@ -898,21 +944,21 @@ def make_handler(store, meter, port, token):
                 if "save" in b or "delete" in b:
                     name = str(b.get("save") or b.get("delete") or "")
                     if not NAME_RE.match(name) or name in chain.CHARACTERS or name in ("ozel", "off", "current"):
-                        raise ValueError("ad: küçük harf, rakam, tire (en çok 40); yerleşik karakter adı olamaz")
+                        raise ValueError(Msg("err_name_rule_char", "ad: küçük harf, rakam, tire (en çok 40); yerleşik karakter adı olamaz"))
                     path = os.path.join(CHAR_DIR, name + ".json")
                     if "save" in b:
                         if name not in user_characters() and len(user_characters()) >= MAX_PROFILES:
-                            raise ValueError(f"en çok {MAX_PROFILES} karakter")
+                            raise ValueError(Msg("err_max_chars", f"en çok {MAX_PROFILES} karakter", n=MAX_PROFILES))
                         os.makedirs(CHAR_DIR, exist_ok=True)
                         json.dump({k: store.state[k] for k in chain.TONE_KEYS}, open(path, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
                         store.char = store._char_of("user:" + name)
                         store.save()
-                        return f"Karakter kaydedildi: {name}"
+                        return Msg("char_saved", f"Karakter kaydedildi: {name}", name=name)
                     if os.path.exists(path):
                         os.remove(path)
                     store.char = store._char_of(None)
                     store.save()
-                    return f"Karakter silindi: {name}"
+                    return Msg("char_deleted", f"Karakter silindi: {name}", name=name)
                 cid, amt = str(b.get("id", "")), b.get("amount", store.amt)
                 if amt not in chain.AMOUNTS:
                     raise ValueError("amount")
@@ -925,25 +971,25 @@ def make_handler(store, meter, port, token):
             if self.path == "/api/profile":
                 name = str(b.get("save") or b.get("delete") or "")
                 if not NAME_RE.match(name):
-                    raise ValueError("ad: küçük harf, rakam, tire (en çok 40)")
+                    raise ValueError(Msg("err_name_rule", "ad: küçük harf, rakam, tire (en çok 40)"))
                 path = os.path.join(PROFILE_DIR, name + ".json")
                 if "save" in b:
                     if name not in profiles() and len(profiles()) >= MAX_PROFILES:
-                        raise ValueError(f"en çok {MAX_PROFILES} profil")
+                        raise ValueError(Msg("err_max_profiles", f"en çok {MAX_PROFILES} profil", n=MAX_PROFILES))
                     os.makedirs(PROFILE_DIR, exist_ok=True)
                     json.dump(store.state, open(path, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
                     store.mode = store.base = "user:" + name
                     store.save()
-                    return f"Profil kaydedildi: {name}"
+                    return Msg("profile_saved", f"Profil kaydedildi: {name}", name=name)
                 if os.path.exists(path):
                     os.remove(path)
-                return f"Profil silindi: {name}"
+                return Msg("profile_deleted", f"Profil silindi: {name}", name=name)
             if self.path == "/api/audition":
                 act = b.get("action")
                 if act == "record":
                     sec = b.get("seconds", 8)
                     if isinstance(sec, bool) or not isinstance(sec, int) or not 3 <= sec <= 20:
-                        raise ValueError("seconds 3–20")
+                        raise ValueError(Msg("err_seconds_range", "seconds 3–20"))
                     return AUDITION.record(store, sec)
                 if act == "play":
                     return AUDITION.play(store, str(b.get("id", "")))
@@ -960,11 +1006,11 @@ def make_handler(store, meter, port, token):
             if self.path == "/api/trial":
                 sec = b.get("seconds", 8)
                 if isinstance(sec, bool) or not isinstance(sec, int) or not 3 <= sec <= 20:
-                    raise ValueError("seconds 3–20")
-                return "Başka bir kayıt sürüyor." if (AUDITION.phase != "idle" or DIAG.phase != "idle") else "" if TRIAL.start(sec) else "Deneme zaten sürüyor."
+                    raise ValueError(Msg("err_seconds_range", "seconds 3–20"))
+                return Msg("recording_busy", "Başka bir kayıt sürüyor.") if (AUDITION.phase != "idle" or DIAG.phase != "idle") else "" if TRIAL.start(sec) else Msg("trial_busy", "Deneme zaten sürüyor.")
             if self.path == "/api/monitor":
                 if TRIAL.phase != "idle":
-                    return "Deneme sürerken canlı dinleme değiştirilemez."
+                    return Msg("monitor_during_trial", "Deneme sürerken canlı dinleme değiştirilemez.")
                 mode = b.get("mode")
                 if mode not in ("off", "temiz", "ham"):
                     raise ValueError("mode")
@@ -974,7 +1020,7 @@ def make_handler(store, meter, port, token):
                 if mode == "off":
                     return ""
                 rc, out = run(sys.executable, MIC, "monitor", "on", mode)
-                return "" if rc == 0 else out.splitlines()[-1]
+                return "" if rc == 0 else Msg("monitor_failed", (out.splitlines() or [""])[-1], detail=(out.splitlines() or [""])[-1])
             return None
 
     return H
