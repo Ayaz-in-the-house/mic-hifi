@@ -23,7 +23,7 @@ The cleaning chain and the panel were built by measurement and run live. The mic
 | **L4** cleaning chain | **Strong:** whisper SNR 8.6 → 27.1 dB; leveller, compressor, DeepFilterNet3, gate, split-band de-esser, dynamic EQ; output targets −23 / −16 LUFS, true peak ≤ −1 dBTP | Only Whisper mode passed its acceptance test; Normal and Night values not settled by measurement. No live mouth-click / crackle removal, no dereverb; echo cancellation tried but not wired in. Most settings not verified by ear | Near-studio delivery; echo cancellation for speaker calls | Test-set recording with your own voice (~20 min) + the panel's diagnostic recording |
 | **L5** quality path (GPU) | Second, ~1 s delayed "quality" microphone live (MossFormer2); file enhancement (`mic enhance`); offline it beats DeepFilterNet (SNR 37.1 vs 30.7 dB) | Not verified by ear; setup not documented in this repo; not the main microphone | Cleaner sound for recording and streaming where latency does not matter | Setup documentation + listening test |
 | **L6** voice character, pitch, conversion | 10 characters, intensity, your own characters; pitch (Rubber Band) | Formant not adjustable separately; AI voice conversion not done | Change your own voice colour; convert to another voice with AI | Open-source voice-conversion models (licence and latency measured) |
-| **L7** panel, install, distribution | Panel, diagnostic recording, profiles; mic chosen with `mic device`; Apache-2.0; clean release tree | Install not walked end to end on a clean machine; setup wizard postponed; no English UI; no CI; DeepFilterNet mandatory | Others can install and use it on their own machine | Clean-machine/VM install walk + CI with synthetic signals |
+| **L7** panel, install, distribution | Panel in English and Turkish, diagnostic recording, profiles; mic chosen with `mic device`; Apache-2.0; clean release tree | Install not walked end to end on a clean machine; setup wizard postponed; no CI; DeepFilterNet mandatory | Others can install and use it on their own machine | Clean-machine/VM install walk + CI with synthetic signals |
 
 **The ceiling you cannot pass.** The biggest quality gap is hardware: 27 dB equivalent noise (manual) and 16 bit / ~17 kHz. Software suppresses noise afterwards; a good microphone never produces it — software cannot close that gap. Realistic target: clean sound for calls and streaming; studio vocals are out of reach with this microphone.
 
@@ -37,7 +37,7 @@ The cleaning chain and the panel were built by measurement and run live. The mic
 - [ ] **L4** settle Normal/Night by measurement; mouth clicks, echo cancellation
 - [ ] **L5** quality-path setup docs + listening test
 - [ ] **L6** formant + AI voice conversion
-- [ ] **L7** clean-machine install walk, English UI, CI
+- [ ] **L7** clean-machine install walk, CI
 
 ## Who can do what — manufacturer ↔ user
 
@@ -84,9 +84,9 @@ Cost and gain are estimates; not measured on this microphone.
 
 ## Screenshots
 
-![Microphone console: mode, voice character and tone settings](assets/screenshots/panel.png)
+![Mic console: mode, voice character and tone settings](assets/screenshots/panel.png)
 
-![Diagnostic recording: fine-tuning with room tone and short sample recordings](assets/screenshots/teshis-kaydi.png)
+![Diagnostic recording: guided room tone and short sample takes for fine-tuning](assets/screenshots/diagnostic-recording.png)
 
 ## Tested hardware
 
@@ -137,7 +137,7 @@ Tests that need no personal recording: `python3 tests/test_console_server.py`, `
 - **Measured on a single machine (Fedora 44) and a single microphone.** The installation steps have not been walked end to end on a clean machine; plugin paths may differ on other distributions (`LADSPA_PATH` is honoured).
 - The noise suppressor continuously uses about a third of a CPU core. If a heavy memory-bound job (e.g. a compile) runs at the same time, short dropouts can occur; the panel shows the count for the last 10 minutes.
 - Settings were chosen by measurement; **verifying them by ear is up to you** — you decide how the characters and pitch sound on your own voice.
-- The user interface is in Turkish.
+- The panel is in English and Turkish: it follows your browser language, and the button in the header (or `?lang=en` / `?lang=tr`) switches and remembers it. The virtual microphone names the system shows to apps (e.g. "Mikrofon (temiz)") and the command-line output are still Turkish.
 - The "quality" microphone (`mic-main`, `mic-watch`) and `bin/mic enhance` need a separate Python environment, an NVIDIA graphics card and a model you download yourself (MossFormer2_SE_48K, Apache-2.0); this repository contains neither the model nor the environment, and their setup is not documented here. If you will not use them, do not enable those two units.
 - Design notes and measurement logs are not published in this repository; `docs/...` references in the code point to those notes.
 
