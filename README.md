@@ -78,7 +78,7 @@ Cost and gain are estimates; not measured on this microphone.
 | Expose 24 bit / 48 kHz over USB where the ADC supports it | Firmware only | More headroom for quiet speech, wider bandwidth |
 | Make in-device automatic gain switchable (via a USB Audio Class control) | Firmware only | The software chain behaves predictably; gain "pumping" stops |
 | Enable a default high-pass (~80 Hz) in the device | Firmware only | On this mic almost all noise is below 80 Hz: hum and desk rumble are cut at the source |
-| Ship a foam windscreen / pop filter and a simple shock mount | A few cents to a few euros | Fewer plosive pops and less desk-borne vibration |
+| Publish the measured effect of accessories (this model already ships with a pop filter and a shock mount) | Zero | Users know whether extra damping is needed |
 | Document the control channel (HID) | Writing a document | Settings managed safely from any platform |
 | Low-noise supply for the preamp (a clean regulator) | Very low parts cost | Lower self-noise — less noise for software to suppress afterwards |
 
@@ -92,7 +92,9 @@ Cost and gain are estimates; not measured on this microphone.
 
 | | |
 |---|---|
-| Microphone | **Nor-Tec streaming mic** (USB) — USB ID `3206:1278`, appears in PipeWire as `alsa_input.usb-Nor-Tec_streaming_mic_…` |
+| Microphone | **Nor-Tec streaming mic** (USB-C, sold by Action) — USB ID `3206:1278`, appears in PipeWire as `alsa_input.usb-Nor-Tec_streaming_mic_…` |
+| Manufacturer (per manual) | Schou Company A/S, Kolding, Denmark · made in China |
+| Manual specs | 80 Hz – 17 kHz · sensitivity −39 ± 2 dB · S/N 67 dB · equivalent noise 27 dB · cardioid · 5 V, 4–210 mA · pop filter + shock mount included · touch mute, LED |
 | Format | 48 kHz, s16le, 2 channels over USB (measured usable band ~17 kHz) |
 | System | Fedora 44 · PipeWire 1.6.8 · WirePlumber |
 
