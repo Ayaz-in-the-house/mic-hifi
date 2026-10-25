@@ -4,7 +4,7 @@
 
 **English** · [Türkçe](README.tr.md)
 
-A local system that processes a USB microphone layer by layer on PipeWire and exposes the result as a **virtual microphone**, plus a small web panel to control it.
+A local system (tested with the **Nor-Tec streaming mic**) that processes a USB microphone layer by layer on PipeWire and exposes the result as a **virtual microphone**, plus a small web panel to control it.
 Audio never leaves your computer: no cloud, no account.
 
 Chain: high-pass (95 Hz) → leveller (lifts whispering, freezes in silence) → compressor → noise suppression (DeepFilterNet3) → silence gate →
@@ -87,6 +87,18 @@ Cost and gain are estimates; not measured on this microphone.
 ![Microphone console: mode, voice character and tone settings](assets/screenshots/panel.png)
 
 ![Diagnostic recording: fine-tuning with room tone and short sample recordings](assets/screenshots/teshis-kaydi.png)
+
+## Tested hardware
+
+| | |
+|---|---|
+| Microphone | **Nor-Tec streaming mic** (USB) — USB ID `3206:1278`, appears in PipeWire as `alsa_input.usb-Nor-Tec_streaming_mic_…` |
+| Format | 48 kHz, s16le, 2 channels over USB (measured usable band ~17 kHz) |
+| System | Fedora 44 · PipeWire 1.6.8 · WirePlumber |
+
+Other USB microphones work too: pick yours with `bin/mic device list` / `bin/mic device set`. If you measured another model, open an issue with the results.
+
+**Search terms:** Nor-Tec streaming mic Linux · USB microphone noise suppression PipeWire · DeepFilterNet LADSPA virtual microphone · whisper mode microphone · PipeWire filter-chain microphone EQ · real-time voice changer Linux · Fedora microphone background noise.
 
 ## Requirements
 

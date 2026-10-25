@@ -4,7 +4,7 @@
 
 [English](README.md) · **Türkçe**
 
-USB mikrofonun sesini PipeWire üzerinde katman katman işleyip **sanal bir mikrofon** olarak sunan yerel bir sistem ve onu yöneten küçük bir web paneli.
+USB mikrofonun (**Nor-Tec streaming mic** ile test edildi) sesini PipeWire üzerinde katman katman işleyip **sanal bir mikrofon** olarak sunan yerel bir sistem ve onu yöneten küçük bir web paneli.
 Ses bilgisayarından çıkmaz; bulut yok, hesap yok.
 
 Zincir: alt kesim (95 Hz) → seviyeleyici (fısıltıyı yükseltir, sessizlikte donar) → kompresör → gürültü bastırma (DeepFilterNet3) → sessizlik kapısı →
@@ -87,6 +87,18 @@ Maliyet ve kazanç tahminidir; bu mikrofonda ölçülmedi.
 ![Mikrofon konsolu: mod, ses karakteri ve ton ayarları](assets/screenshots/panel.png)
 
 ![Teşhis kaydı: oda sesi ve kısa örnek kayıtlarla ince ayar](assets/screenshots/teshis-kaydi.png)
+
+## Test edilen donanım
+
+| | |
+|---|---|
+| Mikrofon | **Nor-Tec streaming mic** (USB) — USB kimliği `3206:1278`, PipeWire'da `alsa_input.usb-Nor-Tec_streaming_mic_…` olarak görünür |
+| Biçim | USB üzerinden 48 kHz, s16le, 2 kanal (ölçülen kullanılabilir bant ~17 kHz) |
+| Sistem | Fedora 44 · PipeWire 1.6.8 · WirePlumber |
+
+Başka USB mikrofonlarla da çalışır: `bin/mic device list` / `bin/mic device set` ile kendininkini seç. Başka bir modeli ölçtüysen sonuçlarla bir issue aç.
+
+**Arama terimleri:** Nor-Tec streaming mic Linux · USB mikrofon gürültü bastırma PipeWire · DeepFilterNet LADSPA sanal mikrofon · fısıltı modu mikrofon · PipeWire filter-chain mikrofon EQ · Linux canlı ses değiştirici · Fedora mikrofon arka plan gürültüsü.
 
 ## Gereksinimler
 
