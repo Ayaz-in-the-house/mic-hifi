@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/icon.svg" width="96" alt="mic-hifi"></p>
+
 # mic-hifi
 
 USB mikrofonun sesini PipeWire üzerinde katman katman işleyip **sanal bir mikrofon** olarak sunan yerel bir sistem ve onu yöneten küçük bir web paneli.
@@ -6,6 +8,12 @@ Ses bilgisayarından çıkmaz; bulut yok, hesap yok.
 Zincir: alt kesim (95 Hz) → seviyeleyici (fısıltıyı yükseltir, sessizlikte donar) → kompresör → gürültü bastırma (DeepFilterNet3) → sessizlik kapısı →
 ton (8 bantlı dengeleyici, hazır karakterler) → çok bantlı dinamik (dolgunluk, şişme, sertlik, ıslık) → doygunluk → tavan sınırlayıcı.
 İsteğe bağlı: perde/ses yolu kaydırma ve ikinci, gecikmeli bir "kalite" mikrofonu (ekran kartında çalışan daha güçlü bir gürültü giderici).
+
+## Ekran görüntüleri
+
+![Mikrofon konsolu: mod, ses karakteri ve ton ayarları](assets/screenshots/panel.png)
+
+![Teşhis kaydı: oda sesi ve kısa örnek kayıtlarla ince ayar](assets/screenshots/teshis-kaydi.png)
 
 ## Gereksinimler
 

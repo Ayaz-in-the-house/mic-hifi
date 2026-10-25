@@ -67,7 +67,7 @@ with tempfile.TemporaryDirectory() as d:
         return rr.returncode, os.path.exists(o)
     r_content = clone_with(lambda c: open(os.path.join(c, "tools", "ekili.py"), "w").write("# yol /home/birisi/gizli\n"), "icerik")
     check("Y4-3", r_content == (1, False), f"içerikte ekili veri → (çıkış, hedef kaldı mı) {r_content} (= (1, False))")
-    r_name = clone_with(lambda c: open(os.path.join(c, "tools", "not-AA_BB_CC_DD_EE_0F.txt"), "w").write("temiz içerik\n"), "ad")
+    r_name = clone_with(lambda c: open(os.path.join(c, "tools", "not-02_00_00_00_00_01.txt"), "w").write("temiz içerik\n"), "ad")
     r_link = clone_with(lambda c: os.symlink("/home/birisi/gizli", os.path.join(c, "tools", "bag")), "bag")
     hook = "MIC_RELEASE_EXTRA" in open(TOOL, encoding="utf-8").read()
     check("Y4-6", r_name == (1, False) and r_link[0] in (1, 2) and r_link[1] is False and not hook,
